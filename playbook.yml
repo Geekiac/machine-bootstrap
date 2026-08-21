@@ -269,6 +269,18 @@
       changed_when: chezmoi_apply.stdout | trim != ""
 
     # -------------------------------------------------------------------
+    # yazi plugins — installed from the chezmoi-managed package.toml
+    # lockfile. `ya pkg install` is declarative/idempotent by design (it
+    # "restores all plugins with versions locked in the configuration
+    # file"), so — like chezmoi apply above — it's run unconditionally
+    # every time rather than gated behind a stat check.
+    # -------------------------------------------------------------------
+    - name: Install yazi plugins
+      ansible.builtin.command:
+        cmd: ya pkg install
+      changed_when: true
+
+    # -------------------------------------------------------------------
     # Doom Emacs — cloned once, like yay above. This must run after
     # chezmoi apply: DOOMDIR (~/.config/doom) is chezmoi-managed, and
     # `doom install` only *creates* init.el/config.el/packages.el when
