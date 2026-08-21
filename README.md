@@ -30,8 +30,8 @@ fetch the script on a completely fresh machine.
 
 ## kewlfft.aur collection
 
-The playbook installs Chrome and VS Code (MS build) from the AUR via
-`yay`, using the `kewlfft.aur` Ansible collection. Unlike
+The playbook installs Chrome, Obsidian, and VS Code (MS build) from
+the AUR via `yay`, using the `kewlfft.aur` Ansible collection. Unlike
 `community.general` (bundled with the `ansible` PyPI package), this
 one isn't bundled — `bootstrap.sh` installs it automatically as part
 of step 5, on both OSes. It's only *used* on Arch, but Ansible resolves
@@ -65,8 +65,8 @@ dotfiles, same as Homebrew's `shellenv` in step 1.
 - macOS: installs CLI tools via Homebrew formulae, GUI apps/fonts via
   Homebrew casks
 - Arch: installs official-repo packages via pacman, bootstraps `yay`
-  from source if missing, then installs Chrome and VS Code (MS build)
-  from the AUR
+  from source if missing, then installs Chrome, Obsidian, and VS Code
+  (MS build) from the AUR
 - Applies dotfiles from `Geekiac/dotfiles` via chezmoi (`init` once,
   `apply` every run)
 
@@ -90,6 +90,9 @@ and run non-interactively.
   — `visual-studio-code-bin` from the AUR is used instead, to match
   the Marketplace-enabled build the Homebrew cask installs on macOS.
 - Arch's fortune package is named `fortune-mod`, not `fortune`.
+- Arch's Fira Code Nerd Font package is named `ttf-firacode-nerd`, not
+  `ttf-fira-code` — matches the macOS cask's switch from plain
+  `font-fira-code` to `font-fira-code-nerd-font`.
 - No secrets live in this repo. Anything sensitive (API keys, Ansible
   Vault-encrypted vars) belongs in `dotfiles` or a password manager,
   not here.
