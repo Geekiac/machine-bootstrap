@@ -34,7 +34,10 @@ The playbook installs Chrome and VS Code (MS build) from the AUR via
 `yay`, using the `kewlfft.aur` Ansible collection. Unlike
 `community.general` (bundled with the `ansible` PyPI package), this
 one isn't bundled — `bootstrap.sh` installs it automatically as part
-of step 5, on Arch only (it's not needed on macOS).
+of step 5, on both OSes. It's only *used* on Arch, but Ansible resolves
+every task's module up front regardless of `when` conditions, so the
+playbook fails to parse on macOS without it too — hence installing it
+unconditionally rather than gating it to Arch.
 
 ## What it does
 
@@ -53,7 +56,7 @@ dotfiles, same as Homebrew's `shellenv` in step 1.
 | 2 | Install Claude Code |
 | 3 | Install `uv` and `gh` — brew on macOS, pacman on Arch |
 | 4 | `gh auth login` |
-| 5 | Install Ansible via `uv tool`, plus `kewlfft.aur` collection (Arch only) |
+| 5 | Install Ansible via `uv tool`, plus `kewlfft.aur` collection (both OSes) |
 | 6 | Clone `dotfiles`, `Notes`, and `machine-bootstrap` to `~/repos` |
 | 7 | Run `playbook.yml` |
 

@@ -10,7 +10,7 @@
 #   2. Install Claude Code (if missing)
 #   3. Install uv, gh — brew on macOS, pacman on Arch (if missing)
 #   4. gh auth login (if not already authenticated)
-#   5. Install ansible via uv tool, plus kewlfft.aur collection (Arch only)
+#   5. Install ansible via uv tool, plus kewlfft.aur collection (both OSes)
 #   6. [commented out] gh clone repos to ~/repos
 #   7. [commented out] run ansible playbook
 #
@@ -116,8 +116,12 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5. ansible via uv tool, plus the kewlfft.aur collection (Arch only —
-#    needed for installing AUR packages via yay in the playbook)
+# 5. ansible via uv tool, plus the kewlfft.aur collection
+#
+# Installed unconditionally, on both OSes — even though it's only used
+# by Arch-specific tasks in the playbook, Ansible resolves every task's
+# module up front regardless of its `when` condition, so the playbook
+# fails to parse on macOS without this present too.
 # ---------------------------------------------------------------------------
 if ! uv tool list 2>/dev/null | grep -q '^ansible '; then
   log "Installing ansible via uv tool"
@@ -126,10 +130,8 @@ else
   log "ansible already installed via uv tool — skipping"
 fi
 
-if [[ "$OS" == "Linux" ]] && command -v pacman >/dev/null 2>&1; then
-  log "Ensuring kewlfft.aur collection is installed"
-  uv tool run --from ansible ansible-galaxy collection install kewlfft.aur
-fi
+log "Ensuring kewlfft.aur collection is installed"
+uv tool run --from ansible ansible-galaxy collection install kewlfft.aur
 
 # ---------------------------------------------------------------------------
 # 6. Clone repos to ~/repos
