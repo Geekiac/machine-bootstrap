@@ -43,6 +43,7 @@
       - lazygit
       - mas
       - nvm
+      - ollama
       - ripgrep
       - neovim
       - starship
@@ -88,6 +89,7 @@
       - lazygit
       - neovim
       - nvm
+      - ollama
       - ripgrep
       - starship
       - steam
