@@ -127,13 +127,19 @@
       when: ansible_facts['os_family'] == "Darwin"
 
     - name: Install Mac App Store apps
-      community.general.mas:
-        id: "{{ mac_app_store_apps.values() | list }}"
-        state: present
+      ansible.builtin.command:
+        cmd: "mas install {{ item }}"
+      loop: "{{ mac_app_store_apps.values() | list }}"
+      register: mas_result
+      changed_when: "'Already installed' not in (mas_result.stdout + mas_result.stderr)"
+      failed_when: mas_result.rc != 0
       when: ansible_facts['os_family'] == "Darwin"
-      # Unlike the brew tasks above, this is a purpose-built module
-      # (not our own command wrapper) so its own changed/failed
-      # detection is trusted rather than worked around.
+      # community.general.mas parses `mas list` to check current state,
+      # splitting each line on the first space — but mas right-aligns
+      # shorter IDs with a leading space, which the naive split chokes
+      # on ("invalid literal for int() with base 10: ''"). Same class of
+      # output-parsing fragility as the Homebrew modules avoided above;
+      # trusting `mas install`'s own exit code/stdout instead sidesteps it.
 
     # -------------------------------------------------------------------
     # nvm's working directory. Homebrew's nvm caveat says to create this
