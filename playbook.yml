@@ -173,6 +173,23 @@
       # trusting `mas install`'s own exit code/stdout instead sidesteps it.
 
     # -------------------------------------------------------------------
+    # `brew install ollama` only lays down the binary — it doesn't start
+    # the server, so `ollama pull`/`ollama run` fail with "could not
+    # connect to ollama server" until something runs `ollama serve`.
+    # `brew services start` runs it as a launchd background service
+    # (also restarts it at login) instead. Same command-module/exit-code
+    # pattern as the brew tasks above: `brew services start` on an
+    # already-running service prints "already started" and still exits 0.
+    # -------------------------------------------------------------------
+    - name: Start ollama service
+      ansible.builtin.command:
+        cmd: brew services start ollama
+      register: ollama_service_result
+      changed_when: "'already started' not in (ollama_service_result.stdout + ollama_service_result.stderr)"
+      failed_when: ollama_service_result.rc != 0
+      when: ansible_facts['os_family'] == "Darwin"
+
+    # -------------------------------------------------------------------
     # nvm's working directory. Homebrew's nvm caveat says to create this
     # manually — the formula doesn't do it. Created unconditionally
     # (harmless on Arch too) rather than gating to macOS.
@@ -202,6 +219,20 @@
         name: "{{ pacman_packages }}"
         state: present
         update_cache: true
+      become: true
+      when: ansible_facts['distribution'] == "Archlinux"
+
+    # -------------------------------------------------------------------
+    # Arch's ollama package ships a systemd unit (ollama.service) but
+    # doesn't enable it, same underlying issue as the Homebrew formula
+    # above: the binary's present but nothing's listening on :11434
+    # until the service is started.
+    # -------------------------------------------------------------------
+    - name: Enable and start ollama service
+      ansible.builtin.systemd:
+        name: ollama
+        enabled: true
+        state: started
       become: true
       when: ansible_facts['distribution'] == "Archlinux"
 
