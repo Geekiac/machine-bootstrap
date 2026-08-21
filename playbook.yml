@@ -1,0 +1,171 @@
+---
+# playbook.yml
+#
+# Installs the standard toolset (per-OS package manager) and applies
+# chezmoi dotfiles from Geekiac/dotfiles. Safe to re-run — every task is
+# state-checking, not action-repeating.
+#
+# Requires:
+#   - community.general collection (bundled with `ansible`, the PyPI
+#     meta-package — already the case if installed via
+#     `uv tool install ansible` rather than the bare `ansible-core`).
+#   - kewlfft.aur collection, for installing AUR packages via yay.
+#     NOT bundled by default — install once with:
+#       uv tool run --from ansible ansible-galaxy collection install kewlfft.aur
+#
+# First Arch run must be interactive: building yay via makepkg calls
+# `sudo` internally partway through (separate from Ansible's own
+# --ask-become-pass), so it'll pause for your password mid-build the
+# first time only, same pattern as the Xcode CLT step on macOS.
+#
+# Run with:
+#   uv tool run --from ansible ansible-playbook playbook.yml --ask-become-pass
+
+- name: Bootstrap standard toolset
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars:
+    dotfiles_repo: "Geekiac/dotfiles"
+
+    # macOS — Homebrew formulae (CLI tools) vs casks (GUI apps / fonts)
+    # are two different install mechanisms, so they're split here.
+    homebrew_formulae:
+      - chezmoi
+      - eza
+      - fd
+      - fortune
+      - fzf
+      - ripgrep
+      - neovim
+      - starship
+      - zoxide
+
+    homebrew_casks:
+      - ghostty
+      - font-fira-code
+      - visual-studio-code
+
+    # Arch — official-repo packages, via pacman. One name differs from
+    # what you'd guess: fortune is "fortune-mod". VS Code isn't here —
+    # it's AUR-only for the MS-branded build, see aur_packages below.
+    pacman_packages:
+      - chezmoi
+      - ghostty
+      - eza
+      - fd
+      - fortune-mod
+      - fzf
+      - ripgrep
+      - neovim
+      - starship
+      - ttf-fira-code
+      - zoxide
+
+    # Arch — AUR packages, via yay (bootstrapped below if missing).
+    # visual-studio-code-bin is the MS-branded build (Marketplace access,
+    # matches the Homebrew cask) rather than the official repo's "code"
+    # (open-source vscode-oss build, Open VSX only).
+    aur_packages:
+      - google-chrome
+      - visual-studio-code-bin
+
+  tasks:
+    # -------------------------------------------------------------------
+    # macOS
+    # -------------------------------------------------------------------
+    - name: Install Homebrew formulae
+      community.general.homebrew:
+        name: "{{ homebrew_formulae }}"
+        state: present
+      when: ansible_facts['os_family'] == "Darwin"
+      # Homebrew must NOT run as root — no become here.
+
+    - name: Install Homebrew casks
+      community.general.homebrew_cask:
+        name: "{{ homebrew_casks }}"
+        state: present
+      when: ansible_facts['os_family'] == "Darwin"
+
+    # -------------------------------------------------------------------
+    # Arch
+    # -------------------------------------------------------------------
+    - name: Install pacman packages
+      community.general.pacman:
+        name: "{{ pacman_packages }}"
+        state: present
+        update_cache: true
+      become: true
+      when: ansible_facts['distribution'] == "Archlinux"
+
+    # -------------------------------------------------------------------
+    # Arch — yay (AUR helper), bootstrapped from source if missing
+    # -------------------------------------------------------------------
+    - name: Check whether yay is already installed
+      ansible.builtin.command: which yay
+      register: yay_check
+      changed_when: false
+      failed_when: false
+      when: ansible_facts['distribution'] == "Archlinux"
+
+    - name: Install base-devel and git (required to build yay)
+      community.general.pacman:
+        name:
+          - base-devel
+          - git
+        state: present
+      become: true
+      when:
+        - ansible_facts['distribution'] == "Archlinux"
+        - yay_check.rc != 0
+
+    - name: Clone yay from the AUR
+      ansible.builtin.git:
+        repo: https://aur.archlinux.org/yay.git
+        dest: /tmp/yay-build
+      when:
+        - ansible_facts['distribution'] == "Archlinux"
+        - yay_check.rc != 0
+      # No become: makepkg refuses to run as root.
+
+    - name: Build and install yay
+      ansible.builtin.command:
+        cmd: makepkg -si --noconfirm
+        chdir: /tmp/yay-build
+      when:
+        - ansible_facts['distribution'] == "Archlinux"
+        - yay_check.rc != 0
+      # makepkg calls sudo internally for the final package install —
+      # that's the interactive pause mentioned at the top of this file.
+
+    # -------------------------------------------------------------------
+    # Arch — AUR packages via yay
+    # -------------------------------------------------------------------
+    - name: Install AUR packages via yay
+      kewlfft.aur.aur:
+        name: "{{ aur_packages }}"
+        use: yay
+        state: present
+      when: ansible_facts['distribution'] == "Archlinux"
+      # No become: AUR builds must not run as root, same as yay itself.
+
+    # -------------------------------------------------------------------
+    # chezmoi — init once, apply every run
+    # -------------------------------------------------------------------
+    - name: Check whether chezmoi has already been initialized
+      ansible.builtin.stat:
+        path: "{{ ansible_env.HOME }}/.local/share/chezmoi"
+      register: chezmoi_source
+
+    - name: Initialize chezmoi from dotfiles repo
+      ansible.builtin.command:
+        cmd: "chezmoi init {{ dotfiles_repo }}"
+      when: not chezmoi_source.stat.exists
+      changed_when: true
+
+    - name: Apply chezmoi
+      ansible.builtin.command:
+        cmd: chezmoi apply --verbose
+      register: chezmoi_apply
+      changed_when: chezmoi_apply.stdout | trim != ""
