@@ -48,6 +48,7 @@
       - ghostty
       - font-fira-code-nerd-font
       - google-chrome
+      - obsidian
       - visual-studio-code
 
     # Arch — official-repo packages, via pacman. Two names differ from
@@ -73,9 +74,11 @@
     # Arch — AUR packages, via yay (bootstrapped below if missing).
     # visual-studio-code-bin is the MS-branded build (Marketplace access,
     # matches the Homebrew cask) rather than the official repo's "code"
-    # (open-source vscode-oss build, Open VSX only).
+    # (open-source vscode-oss build, Open VSX only). obsidian isn't in
+    # the official repos at all, only the AUR.
     aur_packages:
       - google-chrome
+      - obsidian
       - visual-studio-code-bin
 
   tasks:
