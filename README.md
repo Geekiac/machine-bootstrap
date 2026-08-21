@@ -11,10 +11,18 @@ Both files are idempotent — safe to re-run any time, on either machine.
 
 ## Installation
 
+Review-first (recommended default):
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Geekiac/machine-bootstrap/main/bootstrap.sh -o bootstrap.sh
 less bootstrap.sh      # eyeball it before running
 bash bootstrap.sh
+```
+
+Direct pipe, no local file left behind:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Geekiac/machine-bootstrap/main/bootstrap.sh | bash
 ```
 
 No git or Homebrew is required beforehand — `curl` alone is enough to
@@ -26,11 +34,17 @@ The playbook installs Chrome and VS Code (MS build) from the AUR via
 `yay`, using the `kewlfft.aur` Ansible collection. Unlike
 `community.general` (bundled with the `ansible` PyPI package), this
 one isn't bundled — `bootstrap.sh` installs it automatically as part
-of step 5, on Linux only (it's not needed on macOS).
+of step 5, on Arch only (it's not needed on macOS).
 
 ## What it does
 
 **`bootstrap.sh`**
+
+Before the numbered steps, it ensures `~/.local/bin` is on `PATH` for
+the session (uv tool installs and Claude Code's native installer both
+land executables there) — added only if missing, session-only, not
+written to any shell rc file. That's left to the chezmoi-managed
+dotfiles, same as Homebrew's `shellenv` in step 1.
 
 | Step | Action |
 |---|---|

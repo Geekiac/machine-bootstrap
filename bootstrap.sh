@@ -21,6 +21,19 @@ log() { printf '\n\033[1;34m==>\033[0m %s\n' "$1"; }
 OS="$(uname -s)"
 
 # ---------------------------------------------------------------------------
+# ~/.local/bin on PATH — uv tool installs (step 5) and Claude Code's
+# native installer (step 2) both land executables here. Only added if
+# missing, and only for this script's own session.
+# ---------------------------------------------------------------------------
+if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+  export PATH="$HOME/.local/bin:$PATH"
+  log "Added ~/.local/bin to PATH for this session."
+  log "Add it permanently via your chezmoi-managed shell rc so future shells pick it up too."
+else
+  log "~/.local/bin already on PATH — skipping"
+fi
+
+# ---------------------------------------------------------------------------
 # 0. Xcode Command Line Tools (macOS only)
 #
 # git, Homebrew, and most compiled brew formulae need these. On a fresh
