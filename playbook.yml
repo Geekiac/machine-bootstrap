@@ -45,6 +45,7 @@
       - zoxide
 
     homebrew_casks:
+      - discord
       - ghostty
       - font-fira-code-nerd-font
       - google-chrome
@@ -60,6 +61,7 @@
     # build, see aur_packages below.
     pacman_packages:
       - chezmoi
+      - discord
       - ghostty
       - eza
       - fastfetch
