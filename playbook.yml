@@ -38,11 +38,21 @@
       - fd
       - fortune
       - fzf
+      - mas
       - nvm
       - ripgrep
       - neovim
       - starship
       - zoxide
+
+    # macOS — Mac App Store apps, installed via mas. IDs come from
+    # `mas search "<name>"`. mas can only install apps already tied to
+    # the signed-in Apple ID (bought/gotten at least once) — on a fresh
+    # machine with no App Store account signed in yet, sign in via the
+    # App Store app's GUI first, then re-run.
+    mac_app_store_apps:
+      "Wipr 2": 1662217862
+      "WhatsApp Messenger": 310633997
 
     homebrew_casks:
       - discord
@@ -115,6 +125,15 @@
       changed_when: "'already installed' not in (brew_cask_result.stdout + brew_cask_result.stderr)"
       failed_when: brew_cask_result.rc != 0
       when: ansible_facts['os_family'] == "Darwin"
+
+    - name: Install Mac App Store apps
+      community.general.mas:
+        id: "{{ mac_app_store_apps.values() | list }}"
+        state: present
+      when: ansible_facts['os_family'] == "Darwin"
+      # Unlike the brew tasks above, this is a purpose-built module
+      # (not our own command wrapper) so its own changed/failed
+      # detection is trusted rather than worked around.
 
     # -------------------------------------------------------------------
     # nvm's working directory. Homebrew's nvm caveat says to create this

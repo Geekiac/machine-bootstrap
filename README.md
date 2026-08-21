@@ -80,6 +80,10 @@ A couple of steps need you at the keyboard the first time only:
   building `yay` from source also calls `sudo` internally partway
   through `makepkg` — a second, separate password prompt outside
   Ansible's control.
+- **macOS**: the Mac App Store apps task needs an Apple ID already
+  signed in via the App Store app's GUI — `mas` can't do this itself,
+  and can't prompt for it either. If nothing's signed in yet, that
+  task fails; sign in through the App Store app once, then re-run.
 
 Subsequent runs on an already-bootstrapped machine skip all of this
 and run non-interactively.
