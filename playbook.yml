@@ -44,12 +44,14 @@
 
     homebrew_casks:
       - ghostty
-      - font-fira-code
+      - font-fira-code-nerd-font
       - visual-studio-code
 
-    # Arch — official-repo packages, via pacman. One name differs from
-    # what you'd guess: fortune is "fortune-mod". VS Code isn't here —
-    # it's AUR-only for the MS-branded build, see aur_packages below.
+    # Arch — official-repo packages, via pacman. Two names differ from
+    # what you'd guess: fortune is "fortune-mod", and the Fira Code Nerd
+    # Font is "ttf-firacode-nerd" (post-v3 nerd-fonts split naming).
+    # VS Code isn't here — it's AUR-only for the MS-branded build, see
+    # aur_packages below.
     pacman_packages:
       - chezmoi
       - ghostty
@@ -60,7 +62,7 @@
       - ripgrep
       - neovim
       - starship
-      - ttf-fira-code
+      - ttf-firacode-nerd
       - zoxide
 
     # Arch — AUR packages, via yay (bootstrapped below if missing).
