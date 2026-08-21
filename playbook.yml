@@ -32,6 +32,8 @@
     # macOS — Homebrew formulae (CLI tools) vs casks (GUI apps / fonts)
     # are two different install mechanisms, so they're split here.
     homebrew_formulae:
+      - bat
+      - btop
       - chezmoi
       - emacs
       - eza
@@ -40,6 +42,7 @@
       - fortune
       - fzf
       - git
+      - htop
       - lazygit
       - mas
       - nvm
@@ -48,6 +51,9 @@
       - neovim
       - starship
       - tlrc
+      - tree-sitter-cli
+      - wget
+      - yazi
       - zoxide
 
     # macOS — Mac App Store apps, installed via mas. IDs come from
@@ -76,6 +82,8 @@
     # build, see aur_packages below.
     pacman_packages:
       - bash-completion
+      - bat
+      - btop
       - chezmoi
       - discord
       - emacs
@@ -86,6 +94,7 @@
       - fortune-mod
       - fzf
       - git
+      - htop
       - lazygit
       - neovim
       - nvm
@@ -94,7 +103,10 @@
       - starship
       - steam
       - tlrc
+      - tree-sitter-cli
       - ttf-firacode-nerd
+      - wget
+      - yazi
       - zoxide
 
     # Arch — AUR packages, via yay (bootstrapped below if missing).
