@@ -74,18 +74,31 @@
   tasks:
     # -------------------------------------------------------------------
     # macOS
+    #
+    # Using ansible.builtin.command rather than community.general.homebrew
+    # /homebrew_cask deliberately: those modules parse brew's own output
+    # text to judge success/failure, and misreport routine "already
+    # installed" notices as failures against current Homebrew's output
+    # format. Trusting the exit code instead is more reliable — same
+    # reasoning as the chezmoi apply task below.
     # -------------------------------------------------------------------
     - name: Install Homebrew formulae
-      community.general.homebrew:
-        name: "{{ homebrew_formulae }}"
-        state: present
+      ansible.builtin.command:
+        cmd: "brew install {{ item }}"
+      loop: "{{ homebrew_formulae }}"
+      register: brew_formula_result
+      changed_when: "'already installed' not in (brew_formula_result.stdout + brew_formula_result.stderr)"
+      failed_when: brew_formula_result.rc != 0
       when: ansible_facts['os_family'] == "Darwin"
       # Homebrew must NOT run as root — no become here.
 
     - name: Install Homebrew casks
-      community.general.homebrew_cask:
-        name: "{{ homebrew_casks }}"
-        state: present
+      ansible.builtin.command:
+        cmd: "brew install --cask {{ item }}"
+      loop: "{{ homebrew_casks }}"
+      register: brew_cask_result
+      changed_when: "'already installed' not in (brew_cask_result.stdout + brew_cask_result.stderr)"
+      failed_when: brew_cask_result.rc != 0
       when: ansible_facts['os_family'] == "Darwin"
 
     # -------------------------------------------------------------------
