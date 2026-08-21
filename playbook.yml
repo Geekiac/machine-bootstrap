@@ -47,6 +47,7 @@
     homebrew_casks:
       - ghostty
       - font-fira-code-nerd-font
+      - google-chrome
       - visual-studio-code
 
     # Arch — official-repo packages, via pacman. Two names differ from
