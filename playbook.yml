@@ -49,13 +49,15 @@
       - font-fira-code-nerd-font
       - google-chrome
       - obsidian
+      - steam
       - visual-studio-code
 
     # Arch — official-repo packages, via pacman. Two names differ from
     # what you'd guess: fortune is "fortune-mod", and the Fira Code Nerd
     # Font is "ttf-firacode-nerd" (post-v3 nerd-fonts split naming).
-    # VS Code isn't here — it's AUR-only for the MS-branded build, see
-    # aur_packages below.
+    # steam needs the multilib repo enabled — see the task below that
+    # does it. VS Code isn't here — it's AUR-only for the MS-branded
+    # build, see aur_packages below.
     pacman_packages:
       - chezmoi
       - ghostty
@@ -68,6 +70,7 @@
       - nvm
       - ripgrep
       - starship
+      - steam
       - ttf-firacode-nerd
       - zoxide
 
@@ -125,6 +128,17 @@
     # -------------------------------------------------------------------
     # Arch
     # -------------------------------------------------------------------
+    # multilib is disabled by default on Arch and provides the 32-bit
+    # libraries steam's runtime needs. Uncommenting it here is idempotent
+    # (no-ops once already enabled); update_cache below then picks it up.
+    - name: Enable multilib repository (required for steam)
+      ansible.builtin.replace:
+        path: /etc/pacman.conf
+        regexp: '#\[multilib\]\n#Include = /etc/pacman\.d/mirrorlist'
+        replace: "[multilib]\nInclude = /etc/pacman.d/mirrorlist"
+      become: true
+      when: ansible_facts['distribution'] == "Archlinux"
+
     - name: Install pacman packages
       community.general.pacman:
         name: "{{ pacman_packages }}"
