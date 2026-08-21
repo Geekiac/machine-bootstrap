@@ -11,8 +11,9 @@
 #   3. Install uv, gh — brew on macOS, pacman on Arch (if missing)
 #   4. gh auth login + wire gh credentials into git (if not already authenticated)
 #   5. Install ansible via uv tool, plus kewlfft.aur collection (both OSes)
-#   6. [commented out] gh clone repos to ~/repos
-#   7. [commented out] run ansible playbook
+#   6. gh clone Notes and machine-bootstrap to ~/repos (dotfiles is
+#      symlinked there by playbook.yml instead, see step 7)
+#   7. run ansible playbook
 #
 set -euo pipefail
 
@@ -143,9 +144,12 @@ uv tool run --from ansible ansible-galaxy collection install kewlfft.aur
 
 # ---------------------------------------------------------------------------
 # 6. Clone repos to ~/repos
+#
+# dotfiles isn't cloned here — chezmoi (via playbook.yml) clones it into
+# its own source directory (~/.local/share/chezmoi) and playbook.yml
+# symlinks ~/repos/dotfiles to that, so there's one clone, not two.
 # ---------------------------------------------------------------------------
 REPOS=(
-  "Geekiac/dotfiles"
   "Geekiac/Notes"
   "Geekiac/machine-bootstrap"
 )

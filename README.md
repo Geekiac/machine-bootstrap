@@ -57,7 +57,7 @@ dotfiles, same as Homebrew's `shellenv` in step 1.
 | 3 | Install `uv` and `gh` — brew on macOS, pacman on Arch |
 | 4 | `gh auth login` |
 | 5 | Install Ansible via `uv tool`, plus `kewlfft.aur` collection (both OSes) |
-| 6 | Clone `dotfiles`, `Notes`, and `machine-bootstrap` to `~/repos` |
+| 6 | Clone `Notes` and `machine-bootstrap` to `~/repos` (`dotfiles` isn't cloned here — see step 7) |
 | 7 | Run `playbook.yml` |
 
 **`playbook.yml`**
@@ -68,7 +68,12 @@ dotfiles, same as Homebrew's `shellenv` in step 1.
   from source if missing, then installs Chrome, Obsidian, and VS Code
   (MS build) from the AUR
 - Applies dotfiles from `Geekiac/dotfiles` via chezmoi (`init` once,
-  `apply` every run)
+  `apply` every run), then symlinks `~/repos/dotfiles` to chezmoi's own
+  clone (`~/.local/share/chezmoi`) so there's one copy of the repo, not
+  two — only if `~/repos/dotfiles` doesn't already exist as a real
+  directory, since machines bootstrapped before this existed need a
+  one-time manual migration (remove the real clone, re-run) instead of
+  having it silently deleted
 - Clones Doom Emacs to `~/.config/emacs` and runs `doom install`, once
   only (both are idempotent/safe to re-run, but re-syncing packages on
   every run would be slow for no benefit) — runs after chezmoi so

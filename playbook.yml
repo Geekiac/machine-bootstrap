@@ -255,6 +255,32 @@
       changed_when: chezmoi_apply.stdout | trim != ""
 
     # -------------------------------------------------------------------
+    # chezmoi already keeps its own clone of the dotfiles repo at
+    # ~/.local/share/chezmoi. Rather than a second, independent clone at
+    # ~/repos/dotfiles (bootstrap.sh no longer clones it there), symlink
+    # ~/repos/dotfiles to chezmoi's clone — one copy, edit it from either
+    # path, no drift between them.
+    #
+    # Only acts when ~/repos/dotfiles doesn't already exist: on a machine
+    # bootstrapped before this task existed, that path is a real,
+    # independent clone, and `state: link` with `force: true` would
+    # silently delete it to make room for the symlink. Migrate those by
+    # hand instead — confirm nothing's unpushed, remove the directory,
+    # re-run — so this task only ever creates, never destroys.
+    # -------------------------------------------------------------------
+    - name: Check whether ~/repos/dotfiles already exists
+      ansible.builtin.stat:
+        path: "{{ ansible_env.HOME }}/repos/dotfiles"
+      register: repos_dotfiles
+
+    - name: Symlink ~/repos/dotfiles to the chezmoi source directory
+      ansible.builtin.file:
+        src: "{{ ansible_env.HOME }}/.local/share/chezmoi"
+        dest: "{{ ansible_env.HOME }}/repos/dotfiles"
+        state: link
+      when: not repos_dotfiles.stat.exists
+
+    # -------------------------------------------------------------------
     # Doom Emacs — cloned once, like yay above. This must run after
     # chezmoi apply: DOOMDIR (~/.config/doom) is chezmoi-managed, and
     # `doom install` only *creates* init.el/config.el/packages.el when
