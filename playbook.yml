@@ -33,6 +33,7 @@
     # are two different install mechanisms, so they're split here.
     homebrew_formulae:
       - chezmoi
+      - emacs
       - eza
       - fastfetch
       - fd
@@ -76,6 +77,7 @@
       - bash-completion
       - chezmoi
       - discord
+      - emacs
       - ghostty
       - eza
       - fastfetch
@@ -251,3 +253,36 @@
         cmd: chezmoi apply --verbose
       register: chezmoi_apply
       changed_when: chezmoi_apply.stdout | trim != ""
+
+    # -------------------------------------------------------------------
+    # Doom Emacs — cloned once, like yay above. This must run after
+    # chezmoi apply: DOOMDIR (~/.config/doom) is chezmoi-managed, and
+    # `doom install` only *creates* init.el/config.el/packages.el when
+    # they're missing — it never overwrites them — so chezmoi's copies
+    # need to already be in place before install runs, or it'll deploy
+    # its own stock templates instead.
+    #
+    # `doom install` is itself idempotent/safe to reuse (it says so in
+    # its own --help), but it also re-syncs packages every time, which
+    # is slow for no benefit on a no-op run — so like the yay build
+    # above, it's gated on the initial clone rather than run every time.
+    # `--force` suppresses its interactive prompts (envvar file, etc.),
+    # matching this playbook's otherwise-non-interactive package tasks.
+    # -------------------------------------------------------------------
+    - name: Check whether Doom Emacs is already cloned
+      ansible.builtin.stat:
+        path: "{{ ansible_env.HOME }}/.config/emacs"
+      register: doom_emacs_dir
+
+    - name: Clone Doom Emacs
+      ansible.builtin.git:
+        repo: https://github.com/doomemacs/core
+        dest: "{{ ansible_env.HOME }}/.config/emacs"
+        depth: 1
+      when: not doom_emacs_dir.stat.exists
+
+    - name: Install Doom Emacs (deploys DOOMDIR, installs packages)
+      ansible.builtin.command:
+        cmd: "{{ ansible_env.HOME }}/.config/emacs/bin/doom install --force"
+      when: not doom_emacs_dir.stat.exists
+      changed_when: true

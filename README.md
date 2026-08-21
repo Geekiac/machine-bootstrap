@@ -69,6 +69,10 @@ dotfiles, same as Homebrew's `shellenv` in step 1.
   (MS build) from the AUR
 - Applies dotfiles from `Geekiac/dotfiles` via chezmoi (`init` once,
   `apply` every run)
+- Clones Doom Emacs to `~/.config/emacs` and runs `doom install`, once
+  only (both are idempotent/safe to re-run, but re-syncing packages on
+  every run would be slow for no benefit) — runs after chezmoi so
+  `DOOMDIR` (`~/.config/doom`, chezmoi-managed) is already in place
 
 ## First run isn't fully unattended
 
