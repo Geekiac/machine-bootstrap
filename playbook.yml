@@ -71,6 +71,7 @@
     # does it. VS Code isn't here — it's AUR-only for the MS-branded
     # build, see aur_packages below.
     pacman_packages:
+      - bash-completion
       - chezmoi
       - discord
       - ghostty
