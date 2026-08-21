@@ -132,18 +132,26 @@
     # any system npm. Assumes nvm is already installed (see
     # homebrew_formulae/pacman_packages above) — this playbook doesn't
     # install nvm/Node itself, only bumps nvm's default alias if it's too
-    # old for these packages (see nvm_min_node_major below).
+    # old for these packages (see nvm_min_node_major below). pi's package
+    # is scoped under @earendil-works, not @mariozechner (the old scope
+    # is deprecated upstream); npm_install_args is empty except where a
+    # package's own install docs ask for a flag — pi's quickstart
+    # (https://pi.dev/docs/latest/quickstart) says to pass
+    # --ignore-scripts since it doesn't need install-time scripts.
     npm_global_packages:
-      - opencode-ai
-      - "@mariozechner/pi-coding-agent"
+      - name: opencode-ai
+        npm_install_args: ""
+      - name: "@earendil-works/pi-coding-agent"
+        npm_install_args: "--ignore-scripts"
 
     # Floor for nvm's default-aliased Node version, checked before
-    # installing npm_global_packages above. @mariozechner/pi-coding-agent
-    # (and its pi-tui dependency) use a regex syntax that needs Node
-    # >=20.6.0 — a stale default (e.g. an old "nvm alias default 18" from
-    # long ago) fails at runtime with "Invalid regular expression flags"
-    # rather than at install time, since npm doesn't enforce `engines`.
-    nvm_min_node_major: 20
+    # installing npm_global_packages above. @earendil-works/pi-coding-agent
+    # needs Node >=22.19.0 (`npm view @earendil-works/pi-coding-agent
+    # engines`) — a stale default (e.g. an old "nvm alias default 18"
+    # from long ago) fails at runtime with "Invalid regular expression
+    # flags" rather than at install time, since npm doesn't enforce
+    # `engines`.
+    nvm_min_node_major: 22
 
   tasks:
     # -------------------------------------------------------------------
@@ -361,7 +369,7 @@
         executable: /bin/bash
         cmd: >
           source "$HOME/.nvm/nvm.sh" && nvm use default >/dev/null &&
-          npm list -g --depth=0 {{ item }}
+          npm list -g --depth=0 {{ item.name }}
       loop: "{{ npm_global_packages }}"
       register: npm_global_check
       changed_when: false
@@ -373,7 +381,7 @@
         executable: /bin/bash
         cmd: >
           source "$HOME/.nvm/nvm.sh" && nvm use default >/dev/null &&
-          npm install -g {{ item.item }}
+          npm install -g {{ item.item.npm_install_args }} {{ item.item.name }}
       loop: "{{ npm_global_check.results | default([]) }}"
       when:
         - nvm_sh.stat.exists
