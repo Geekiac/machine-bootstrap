@@ -63,7 +63,7 @@ fi
 if [[ "$OS" == "Darwin" ]]; then
   if ! command -v brew >/dev/null 2>&1; then
     log "Homebrew not found — installing from https://brew.sh"
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" < /dev/tty
 
     # Put brew on PATH for the rest of this script's execution.
     # (Location differs: Apple Silicon vs Intel Mac.)
@@ -110,7 +110,7 @@ fi
 # ---------------------------------------------------------------------------
 if ! gh auth status >/dev/null 2>&1; then
   log "gh not authenticated — starting login flow"
-  gh auth login
+  gh auth login < /dev/tty
 else
   log "gh already authenticated — skipping"
 fi
