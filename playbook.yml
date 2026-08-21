@@ -42,6 +42,7 @@
       - fortune
       - fzf
       - git
+      - herdr
       - htop
       - lazygit
       - mas
@@ -51,6 +52,7 @@
       - neovim
       - starship
       - tlrc
+      - tmux
       - tree-sitter-cli
       - wget
       - yazi
@@ -103,6 +105,7 @@
       - starship
       - steam
       - tlrc
+      - tmux
       - tree-sitter-cli
       - ttf-firacode-nerd
       - wget
@@ -113,9 +116,14 @@
     # visual-studio-code-bin is the MS-branded build (Marketplace access,
     # matches the Homebrew cask) rather than the official repo's "code"
     # (open-source vscode-oss build, Open VSX only). obsidian isn't in
-    # the official repos at all, only the AUR.
+    # the official repos at all, only the AUR. herdr-bin is the
+    # prebuilt-binary AUR package (vs. the source-building "herdr"
+    # package) — same "-bin" preference as visual-studio-code-bin. Unlike
+    # the Homebrew formula, it installs only the binary with no shell
+    # completions, so dot_bashrc sources `herdr completion bash` itself.
     aur_packages:
       - google-chrome
+      - herdr-bin
       - obsidian
       - visual-studio-code-bin
 
