@@ -9,7 +9,7 @@
 #   1. Install Homebrew (macOS only, if missing)
 #   2. Install Claude Code (if missing)
 #   3. Install uv, gh — brew on macOS, pacman on Arch (if missing)
-#   4. gh auth login (if not already authenticated)
+#   4. gh auth login + wire gh credentials into git (if not already authenticated)
 #   5. Install ansible via uv tool, plus kewlfft.aur collection (both OSes)
 #   6. [commented out] gh clone repos to ~/repos
 #   7. [commented out] run ansible playbook
@@ -106,7 +106,12 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. gh auth login
+# 4. gh auth login, then wire gh's credentials into plain git
+#
+# gh's own commands (gh repo clone, step 6) authenticate themselves and
+# don't need this. But plain `git clone` — which is what chezmoi init
+# uses under the hood — has no idea gh is authenticated at all, and
+# will prompt for a username/password on any private repo without it.
 # ---------------------------------------------------------------------------
 if ! gh auth status >/dev/null 2>&1; then
   log "gh not authenticated — starting login flow"
@@ -114,6 +119,9 @@ if ! gh auth status >/dev/null 2>&1; then
 else
   log "gh already authenticated — skipping"
 fi
+
+log "Wiring gh credentials into git (gh auth setup-git)"
+gh auth setup-git
 
 # ---------------------------------------------------------------------------
 # 5. ansible via uv tool, plus the kewlfft.aur collection
