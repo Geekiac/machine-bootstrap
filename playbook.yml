@@ -37,6 +37,7 @@
       - fd
       - fortune
       - fzf
+      - nvm
       - ripgrep
       - neovim
       - starship
@@ -59,8 +60,9 @@
       - fd
       - fortune-mod
       - fzf
-      - ripgrep
       - neovim
+      - nvm
+      - ripgrep
       - starship
       - ttf-firacode-nerd
       - zoxide
@@ -102,6 +104,17 @@
       changed_when: "'already installed' not in (brew_cask_result.stdout + brew_cask_result.stderr)"
       failed_when: brew_cask_result.rc != 0
       when: ansible_facts['os_family'] == "Darwin"
+
+    # -------------------------------------------------------------------
+    # nvm's working directory. Homebrew's nvm caveat says to create this
+    # manually — the formula doesn't do it. Created unconditionally
+    # (harmless on Arch too) rather than gating to macOS.
+    # -------------------------------------------------------------------
+    - name: Ensure nvm working directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_env.HOME }}/.nvm"
+        state: directory
+        mode: "0755"
 
     # -------------------------------------------------------------------
     # Arch
