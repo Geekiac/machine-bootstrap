@@ -1,0 +1,19 @@
+# Ansible
+*.retry
+.ansible/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local overrides / scratch (if you ever add per-machine var files)
+*.local.yml
+*.local.yaml
