@@ -1,9 +1,10 @@
 ---
 # playbook.yml
 #
-# Installs the standard toolset (per-OS package manager) and applies
-# chezmoi dotfiles from Geekiac/dotfiles. Safe to re-run — every task is
-# state-checking, not action-repeating.
+# Installs the standard toolset (per-OS package manager), a handful of
+# global npm packages via nvm, and applies chezmoi dotfiles from
+# Geekiac/dotfiles. Safe to re-run — every task is state-checking, not
+# action-repeating.
 #
 # Requires:
 #   - community.general collection (bundled with `ansible`, the PyPI
@@ -126,6 +127,23 @@
       - herdr-bin
       - obsidian
       - visual-studio-code-bin
+
+    # Global npm packages, installed under nvm's managed Node rather than
+    # any system npm. Assumes nvm is already installed (see
+    # homebrew_formulae/pacman_packages above) — this playbook doesn't
+    # install nvm/Node itself, only bumps nvm's default alias if it's too
+    # old for these packages (see nvm_min_node_major below).
+    npm_global_packages:
+      - opencode-ai
+      - "@mariozechner/pi-coding-agent"
+
+    # Floor for nvm's default-aliased Node version, checked before
+    # installing npm_global_packages above. @mariozechner/pi-coding-agent
+    # (and its pi-tui dependency) use a regex syntax that needs Node
+    # >=20.6.0 — a stale default (e.g. an old "nvm alias default 18" from
+    # long ago) fails at runtime with "Invalid regular expression flags"
+    # rather than at install time, since npm doesn't enforce `engines`.
+    nvm_min_node_major: 20
 
   tasks:
     # -------------------------------------------------------------------
@@ -286,6 +304,81 @@
         state: present
       when: ansible_facts['distribution'] == "Archlinux"
       # No become: AUR builds must not run as root, same as yay itself.
+
+    # -------------------------------------------------------------------
+    # Global npm packages — opencode, pi — via nvm-managed npm. OS-agnostic
+    # (nvm works the same on both), so this isn't gated on os_family/
+    # distribution, only on nvm actually being present. nvm's shell
+    # functions (`nvm use`, `nvm which`) aren't available to Ansible's
+    # non-interactive shell, so nvm.sh is sourced directly in each
+    # command instead. Skipped (not failed) if ~/.nvm/nvm.sh is missing,
+    # since this playbook assumes nvm/Node are already installed rather
+    # than installing them itself.
+    #
+    # Mirrors the yay bootstrap pattern above: a check task (rc register,
+    # failed_when: false) followed by an install task gated on rc != 0,
+    # so changed_when: true only ever fires when an install actually ran.
+    # No become: npm global installs under nvm must run as the normal
+    # user, same reasoning as yay/chezmoi.
+    # -------------------------------------------------------------------
+    - name: Check whether nvm is installed
+      ansible.builtin.stat:
+        path: "{{ ansible_env.HOME }}/.nvm/nvm.sh"
+      register: nvm_sh
+
+    # nvm's default alias can be stuck on an old Node major (e.g. a
+    # long-ago "nvm alias default 18") that's too old for the packages
+    # below. Only bumped when actually below the floor, so this doesn't
+    # hit the network / re-run `nvm install` on an otherwise-unchanged
+    # play. Must run before the install task below, since `npm install
+    # -g` targets whatever `nvm use default` resolves to.
+    - name: Check nvm default Node major version
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: >
+          source "$HOME/.nvm/nvm.sh" &&
+          nvm version default | sed 's/^v//' | cut -d. -f1
+      register: nvm_default_major
+      changed_when: false
+      failed_when: false
+      when: nvm_sh.stat.exists
+
+    - name: Install current LTS Node and set as nvm default
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: >
+          source "$HOME/.nvm/nvm.sh" &&
+          nvm install --lts &&
+          nvm alias default 'lts/*' &&
+          nvm use default
+      when:
+        - nvm_sh.stat.exists
+        - (nvm_default_major.stdout | default('0', true) | trim | int) < nvm_min_node_major
+      changed_when: true
+
+    - name: Check which npm global packages are already installed
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: >
+          source "$HOME/.nvm/nvm.sh" && nvm use default >/dev/null &&
+          npm list -g --depth=0 {{ item }}
+      loop: "{{ npm_global_packages }}"
+      register: npm_global_check
+      changed_when: false
+      failed_when: false
+      when: nvm_sh.stat.exists
+
+    - name: Install global npm packages via nvm-managed npm
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: >
+          source "$HOME/.nvm/nvm.sh" && nvm use default >/dev/null &&
+          npm install -g {{ item.item }}
+      loop: "{{ npm_global_check.results | default([]) }}"
+      when:
+        - nvm_sh.stat.exists
+        - item.rc != 0
+      changed_when: true
 
     # -------------------------------------------------------------------
     # chezmoi — init once, apply every run
