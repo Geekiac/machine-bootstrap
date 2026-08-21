@@ -20,20 +20,13 @@ bash bootstrap.sh
 No git or Homebrew is required beforehand — `curl` alone is enough to
 fetch the script on a completely fresh machine.
 
-## One-time prerequisite: kewlfft.aur
+## kewlfft.aur collection
 
 The playbook installs Chrome and VS Code (MS build) from the AUR via
 `yay`, using the `kewlfft.aur` Ansible collection. Unlike
 `community.general` (bundled with the `ansible` PyPI package), this
-one isn't bundled and needs installing once per machine:
-
-```bash
-uv tool run --from ansible ansible-galaxy collection install kewlfft.aur
-```
-
-`bootstrap.sh` doesn't do this automatically yet — run it manually
-before the playbook step, or before re-running `bootstrap.sh` with
-steps 6/7 uncommented.
+one isn't bundled — `bootstrap.sh` installs it automatically as part
+of step 5, on Linux only (it's not needed on macOS).
 
 ## What it does
 
@@ -46,7 +39,7 @@ steps 6/7 uncommented.
 | 2 | Install Claude Code |
 | 3 | Install `uv` and `gh` — brew on macOS, pacman on Arch |
 | 4 | `gh auth login` |
-| 5 | Install Ansible via `uv tool` |
+| 5 | Install Ansible via `uv tool`, plus `kewlfft.aur` collection (Arch only) |
 | 6 | Clone `dotfiles`, `Notes`, and `machine-bootstrap` to `~/repos` |
 | 7 | Run `playbook.yml` |
 
