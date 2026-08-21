@@ -39,6 +39,7 @@
       - fortune
       - fzf
       - git
+      - lazygit
       - mas
       - nvm
       - ripgrep
@@ -82,6 +83,7 @@
       - fortune-mod
       - fzf
       - git
+      - lazygit
       - neovim
       - nvm
       - ripgrep
