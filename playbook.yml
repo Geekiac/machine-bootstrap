@@ -318,10 +318,19 @@
     # (nvm works the same on both), so this isn't gated on os_family/
     # distribution, only on nvm actually being present. nvm's shell
     # functions (`nvm use`, `nvm which`) aren't available to Ansible's
-    # non-interactive shell, so nvm.sh is sourced directly in each
-    # command instead. Skipped (not failed) if ~/.nvm/nvm.sh is missing,
-    # since this playbook assumes nvm/Node are already installed rather
-    # than installing them itself.
+    # non-interactive shell, so nvm's init script is sourced directly in
+    # each command instead. Skipped (not failed) if that script can't be
+    # found, since this playbook assumes nvm/Node are already installed
+    # rather than installing them itself.
+    #
+    # ~/.nvm/nvm.sh is NOT a reliable check on macOS: Homebrew's nvm
+    # formula doesn't create it at install time — it's a symlink that
+    # $(brew --prefix nvm)/nvm.sh only creates lazily, the first time
+    # something sources it (e.g. a real interactive shell via .zshrc).
+    # On a fresh bootstrap, that means it's still missing when this
+    # playbook runs, silently skipping this whole block. So this checks
+    # every location nvm's init script could be (each OS's package puts
+    # it somewhere different), not just the user's own $NVM_DIR.
     #
     # Mirrors the yay bootstrap pattern above: a check task (rc register,
     # failed_when: false) followed by an install task gated on rc != 0,
@@ -329,10 +338,17 @@
     # No become: npm global installs under nvm must run as the normal
     # user, same reasoning as yay/chezmoi.
     # -------------------------------------------------------------------
-    - name: Check whether nvm is installed
-      ansible.builtin.stat:
-        path: "{{ ansible_env.HOME }}/.nvm/nvm.sh"
-      register: nvm_sh
+    - name: Locate nvm's init script
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: |
+          for candidate in "$(brew --prefix nvm 2>/dev/null)/nvm.sh" "$HOME/.nvm/nvm.sh" "/usr/share/nvm/init-nvm.sh"; do
+            [ -s "$candidate" ] && printf '%s' "$candidate" && break
+          done
+          true
+      register: nvm_script
+      changed_when: false
+      failed_when: false
 
     # nvm's default alias can be stuck on an old Node major (e.g. a
     # long-ago "nvm alias default 18") that's too old for the packages
@@ -344,23 +360,23 @@
       ansible.builtin.shell:
         executable: /bin/bash
         cmd: >
-          source "$HOME/.nvm/nvm.sh" &&
+          source "{{ nvm_script.stdout }}" &&
           nvm version default | sed 's/^v//' | cut -d. -f1
       register: nvm_default_major
       changed_when: false
       failed_when: false
-      when: nvm_sh.stat.exists
+      when: nvm_script.stdout | length > 0
 
     - name: Install current LTS Node and set as nvm default
       ansible.builtin.shell:
         executable: /bin/bash
         cmd: >
-          source "$HOME/.nvm/nvm.sh" &&
+          source "{{ nvm_script.stdout }}" &&
           nvm install --lts &&
           nvm alias default 'lts/*' &&
           nvm use default
       when:
-        - nvm_sh.stat.exists
+        - nvm_script.stdout | length > 0
         - (nvm_default_major.stdout | default('0', true) | trim | int) < nvm_min_node_major
       changed_when: true
 
@@ -368,23 +384,23 @@
       ansible.builtin.shell:
         executable: /bin/bash
         cmd: >
-          source "$HOME/.nvm/nvm.sh" && nvm use default >/dev/null &&
+          source "{{ nvm_script.stdout }}" && nvm use default >/dev/null &&
           npm list -g --depth=0 {{ item.name }}
       loop: "{{ npm_global_packages }}"
       register: npm_global_check
       changed_when: false
       failed_when: false
-      when: nvm_sh.stat.exists
+      when: nvm_script.stdout | length > 0
 
     - name: Install global npm packages via nvm-managed npm
       ansible.builtin.shell:
         executable: /bin/bash
         cmd: >
-          source "$HOME/.nvm/nvm.sh" && nvm use default >/dev/null &&
+          source "{{ nvm_script.stdout }}" && nvm use default >/dev/null &&
           npm install -g {{ item.item.npm_install_args }} {{ item.item.name }}
       loop: "{{ npm_global_check.results | default([]) }}"
       when:
-        - nvm_sh.stat.exists
+        - nvm_script.stdout | length > 0
         - item.rc != 0
       changed_when: true
 
