@@ -119,6 +119,7 @@
       - tree-sitter-cli
       - ttf-firacode-nerd
       - wget
+      - wl-clipboard
       - yazi
       - zoxide
 
