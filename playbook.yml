@@ -121,6 +121,7 @@
       - ripgrep
       - starship
       - steam
+      - tldr
       - tmux
       - tree-sitter-cli
       - ttf-firacode-nerd
@@ -140,7 +141,6 @@
     # AppImage instead — see the task below, near the AUR packages.
     aur_packages:
       - google-chrome
-      - tlrc
       - visual-studio-code-bin
 
     # Global npm packages, installed under nvm's managed Node rather than
