@@ -487,8 +487,14 @@
       changed_when: true
 
     - name: Apply chezmoi
+      # --force: gh auth setup-git (bootstrap.sh) rewrites ~/.gitconfig's
+      # credential helper with gh's absolute binary path on every run,
+      # diverging it from chezmoi's source (which uses plain `gh`). Without
+      # --force, chezmoi detects that drift and blocks on an interactive
+      # confirmation prompt, which fails non-interactively under Ansible's
+      # command module (no TTY). Source should win over local drift here.
       ansible.builtin.command:
-        cmd: chezmoi apply --verbose
+        cmd: chezmoi apply --verbose --force
       register: chezmoi_apply
       changed_when: chezmoi_apply.stdout | trim != ""
 
