@@ -93,7 +93,10 @@
     # Font is "ttf-firacode-nerd" (post-v3 nerd-fonts split naming).
     # steam needs the multilib repo enabled — see the task below that
     # does it. VS Code isn't here — it's AUR-only for the MS-branded
-    # build, see aur_packages below.
+    # build, see aur_packages below. fuse2 isn't for anything in this
+    # list — it's libfuse.so.2, which Obsidian's AppImage (see the task
+    # below, near AUR packages) needs to mount itself at launch; Arch
+    # doesn't pull it in by default.
     pacman_packages:
       - bash-completion
       - bat
@@ -106,6 +109,7 @@
       - fastfetch
       - fd
       - fortune-mod
+      - fuse2
       - fzf
       - git
       - htop
@@ -126,12 +130,15 @@
     # Arch — AUR packages, via yay (bootstrapped below if missing).
     # visual-studio-code-bin is the MS-branded build (Marketplace access,
     # matches the Homebrew cask) rather than the official repo's "code"
-    # (open-source vscode-oss build, Open VSX only). obsidian isn't in
-    # the official repos at all, only the AUR. herdr isn't here — see the
-    # herdr task below, installed via its own script on both OSes instead.
+    # (open-source vscode-oss build, Open VSX only). herdr isn't here —
+    # see the herdr task below, installed via its own script on both
+    # OSes instead. obsidian isn't here either — it's not in the official
+    # repos, only the AUR, but rather than fight AUR's first-time
+    # sudo/tty requirement (see the top of this file) for a GUI app that
+    # publishes its own Linux build, it's installed from the official
+    # AppImage instead — see the task below, near the AUR packages.
     aur_packages:
       - google-chrome
-      - obsidian
       - tlrc
       - visual-studio-code-bin
 
@@ -370,6 +377,64 @@
         state: present
       when: ansible_facts['distribution'] == "Archlinux"
       # No become: AUR builds must not run as root, same as yay itself.
+
+    # -------------------------------------------------------------------
+    # Arch — Obsidian via its official AppImage, not the AUR
+    #
+    # obsidian isn't in the official repos, only the AUR — but rather
+    # than route a GUI app through yay's first-time sudo/tty wall (see
+    # the top of this file) for a package that publishes its own Linux
+    # build directly, this downloads the AppImage straight from GitHub
+    # and drops it in ~/.local/bin, same "installer lands a binary on
+    # PATH" pattern as Claude Code and herdr above. No become: writes to
+    # the invoking user's own ~/.local/bin.
+    #
+    # GitHub's /releases/latest endpoint isn't reliable here — this repo
+    # also publishes Android-only releases (assets are just a .apk) that
+    # can be the most recent tag. So this walks /releases newest-first
+    # via Jinja and takes the first one that actually ships a desktop
+    # AppImage (excluding the separate -arm64 build).
+    #
+    # Only checked/installed once, like Claude Code/herdr — re-running
+    # this playbook won't pick up a newer Obsidian release once
+    # ~/.local/bin/obsidian exists. Obsidian's own in-app updater handles
+    # that from here.
+    # -------------------------------------------------------------------
+    - name: Check whether Obsidian AppImage is already installed
+      ansible.builtin.stat:
+        path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/obsidian"
+      register: obsidian_bin
+      when: ansible_facts['distribution'] == "Archlinux"
+
+    - name: Look up Obsidian releases
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/obsidianmd/obsidian-releases/releases?per_page=10
+        return_content: true
+      register: obsidian_releases
+      when:
+        - ansible_facts['distribution'] == "Archlinux"
+        - not obsidian_bin.stat.exists
+
+    - name: Determine latest Obsidian AppImage download URL
+      ansible.builtin.set_fact:
+        obsidian_appimage_url: >-
+          {{ (obsidian_releases.json
+              | map(attribute='assets') | list
+              | map('selectattr', 'name', 'match', '^Obsidian-[0-9.]+\.AppImage$')
+              | map('list') | select('ne', [])
+              | list | first | first).browser_download_url }}
+      when:
+        - ansible_facts['distribution'] == "Archlinux"
+        - not obsidian_bin.stat.exists
+
+    - name: Download Obsidian AppImage to ~/.local/bin
+      ansible.builtin.get_url:
+        url: "{{ obsidian_appimage_url }}"
+        dest: "{{ ansible_facts['env']['HOME'] }}/.local/bin/obsidian"
+        mode: "0755"
+      when:
+        - ansible_facts['distribution'] == "Archlinux"
+        - not obsidian_bin.stat.exists
 
     # -------------------------------------------------------------------
     # Global npm packages — opencode, pi — via nvm-managed npm. OS-agnostic

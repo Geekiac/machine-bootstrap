@@ -31,16 +31,27 @@ fetch the script on a completely fresh machine.
 
 ## kewlfft.aur collection
 
-The playbook installs Chrome, Obsidian, and VS Code (MS build) from
-the AUR via `yay`, using the `kewlfft.aur` Ansible collection, and
-uses `community.general` for pacman. `bootstrap.sh` installs Ansible
-as the lean `ansible-core` PyPI package (not the full `ansible`
-metapackage) and installs both collections explicitly via
-`ansible-galaxy` as part of step 4, on both OSes. They're only *used*
-on Arch, but Ansible resolves every task's module up front regardless
-of `when` conditions, so the playbook fails to parse on macOS without
-them too — hence installing them unconditionally rather than gating
-to Arch.
+The playbook installs Chrome and VS Code (MS build) from the AUR via
+`yay`, using the `kewlfft.aur` Ansible collection, and uses
+`community.general` for pacman. (Obsidian isn't among them — see
+below.) `bootstrap.sh` installs Ansible as the lean `ansible-core`
+PyPI package (not the full `ansible` metapackage) and installs both
+collections explicitly via `ansible-galaxy` as part of step 4, on
+both OSes. They're only *used* on Arch, but Ansible resolves every
+task's module up front regardless of `when` conditions, so the
+playbook fails to parse on macOS without them too — hence installing
+them unconditionally rather than gating to Arch.
+
+## Obsidian on Arch
+
+Obsidian isn't in Arch's official repos, only the AUR — but rather
+than route a GUI app through `yay`'s first-time sudo/tty wall (see
+below), the playbook downloads Obsidian's own official AppImage
+straight from GitHub and drops it in `~/.local/bin`, the same
+"installer lands a binary on `PATH`" pattern used for Claude Code and
+`herdr`. This needs `fuse2` (`libfuse.so.2`) to run, which isn't
+installed by Arch by default — it's in `pacman_packages` alongside it.
+On macOS, Obsidian still installs normally via the Homebrew cask.
 
 ## What it does
 
@@ -74,8 +85,9 @@ step 1.
 - macOS: installs CLI tools via Homebrew formulae, GUI apps/fonts via
   Homebrew casks
 - Arch: installs official-repo packages via pacman, bootstraps `yay`
-  from source if missing, then installs Chrome, Obsidian, and VS Code
-  (MS build) from the AUR
+  from source if missing, then installs Chrome and VS Code (MS build)
+  from the AUR; Obsidian installs from its own AppImage instead (see
+  "Obsidian on Arch" above)
 - Applies dotfiles from `Geekiac/dotfiles` via chezmoi (`init` once,
   `apply` every run). chezmoi's own clone at `~/.local/share/chezmoi`
   (or `chezmoi source-path`) is the only copy of the repo on disk —
