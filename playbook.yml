@@ -1,10 +1,10 @@
 ---
 # playbook.yml
 #
-# Installs the standard toolset (per-OS package manager), a handful of
-# global npm packages via nvm, and applies chezmoi dotfiles from
-# Geekiac/dotfiles. Safe to re-run — every task is state-checking, not
-# action-repeating.
+# Installs Claude Code and herdr via their own install scripts, the
+# standard toolset (per-OS package manager), a handful of global npm
+# packages via nvm, and applies chezmoi dotfiles from Geekiac/dotfiles.
+# Safe to re-run — every task is state-checking, not action-repeating.
 #
 # Requires:
 #   - community.general collection (bundled with `ansible`, the PyPI
@@ -18,6 +18,19 @@
 # `sudo` internally partway through (separate from Ansible's own
 # --ask-become-pass), so it'll pause for your password mid-build the
 # first time only, same pattern as the Xcode CLT step on macOS.
+#
+# The same applies whenever a NEW package is added to aur_packages below
+# — not just on a fresh machine. yay itself (not just building yay) calls
+# `sudo pacman -U` internally to install the package it just built, and
+# that call has no way to read a password non-interactively (no -S flag,
+# no askpass helper configured). kewlfft.aur only invokes yay for
+# packages that aren't already installed, so this is silent on re-runs
+# of existing packages but bites again for each new addition: it'll fail
+# with "sudo: a terminal is required to read the password" if run
+# non-interactively (e.g. backgrounded, redirected output), or block on
+# a password prompt if run in a real terminal. Fix: run
+# `yay -S <new-package>` by hand first, then re-run the playbook — it'll
+# see the package already installed and skip.
 #
 # Run with:
 #   uv tool run --from ansible ansible-playbook playbook.yml --ask-become-pass
@@ -43,7 +56,6 @@
       - fortune
       - fzf
       - git
-      - herdr
       - htop
       - lazygit
       - mas
@@ -116,14 +128,10 @@
     # visual-studio-code-bin is the MS-branded build (Marketplace access,
     # matches the Homebrew cask) rather than the official repo's "code"
     # (open-source vscode-oss build, Open VSX only). obsidian isn't in
-    # the official repos at all, only the AUR. herdr-bin is the
-    # prebuilt-binary AUR package (vs. the source-building "herdr"
-    # package) — same "-bin" preference as visual-studio-code-bin. Unlike
-    # the Homebrew formula, it installs only the binary with no shell
-    # completions, so dot_bashrc sources `herdr completion bash` itself.
+    # the official repos at all, only the AUR. herdr isn't here — see the
+    # herdr task below, installed via its own script on both OSes instead.
     aur_packages:
       - google-chrome
-      - herdr-bin
       - obsidian
       - tlrc
       - visual-studio-code-bin
@@ -154,6 +162,57 @@
     nvm_min_node_major: 22
 
   tasks:
+    # -------------------------------------------------------------------
+    # Claude Code — deliberately the first task in the whole playbook,
+    # not just installed somewhere convenient: if a later step fails,
+    # Claude Code is already on the machine to help debug it. OS-agnostic
+    # (the same install script works on macOS and Arch), so no `when`
+    # guard here. Checks the actual install path with `ansible.builtin.
+    # stat` rather than `command -v claude` / `which claude`, since
+    # Ansible's command/shell modules don't source .bashrc/.zshrc —
+    # ~/.local/bin being on PATH there is a chezmoi-managed dotfiles
+    # concern, not something this non-interactive exec context inherits.
+    # No become: the installer writes to the invoking user's own
+    # ~/.local/bin, same reasoning as Homebrew/yay below.
+    # -------------------------------------------------------------------
+    - name: Check whether Claude Code is already installed
+      ansible.builtin.stat:
+        path: "{{ ansible_env.HOME }}/.local/bin/claude"
+      register: claude_bin
+
+    - name: Install Claude Code
+      ansible.builtin.shell:
+        cmd: curl -fsSL https://claude.ai/install.sh | bash
+      when: not claude_bin.stat.exists
+
+    # -------------------------------------------------------------------
+    # herdr — installed via its own curl|sh script rather than a package
+    # manager, on both OSes (no `when` guard), instead of a Homebrew
+    # formula on macOS and the third-party herdr-bin AUR package on Arch.
+    # Upstream doesn't publish an AUR package itself, and going through
+    # yay meant every newly-added AUR package needed an interactive
+    # terminal for yay's internal `sudo pacman -U` install step (see the
+    # header comment above) — this is genuinely new-package-only pain,
+    # not a one-time bootstrap cost, so it's worth avoiding here. The
+    # official installer (https://herdr.dev/docs/install/) verifies a
+    # SHA-256 checksum against a signed release manifest and drops the
+    # binary in ~/.local/bin with no sudo involved. herdr self-updates
+    # (`herdr update`) once installed, so this task only needs to run
+    # once — same stat-based-check reasoning as Claude Code above.
+    # Installs only the binary with no shell completions (same as the
+    # old herdr-bin AUR package), so dot_bashrc sources
+    # `herdr completion bash` itself.
+    # -------------------------------------------------------------------
+    - name: Check whether herdr is already installed
+      ansible.builtin.stat:
+        path: "{{ ansible_env.HOME }}/.local/bin/herdr"
+      register: herdr_bin
+
+    - name: Install herdr
+      ansible.builtin.shell:
+        cmd: curl -fsSL https://herdr.dev/install.sh | sh
+      when: not herdr_bin.stat.exists
+
     # -------------------------------------------------------------------
     # macOS
     #

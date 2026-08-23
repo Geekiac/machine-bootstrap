@@ -3,9 +3,10 @@
 For bootstrapping Arch and macOS machines.
 
 `bootstrap.sh` gets a fresh machine from nothing to a working dev
-environment: Xcode CLT (macOS), Homebrew or pacman, Claude Code, `uv`,
-`gh`, and Ansible. It then hands off to `playbook.yml`, which installs
-the standard toolset and applies dotfiles via chezmoi.
+environment: Xcode CLT (macOS), Homebrew or pacman, `uv`, `gh`, and
+Ansible. It then hands off to `playbook.yml`, which installs Claude
+Code first (so it's available to help if anything later fails), then
+the rest of the standard toolset, and applies dotfiles via chezmoi.
 
 Both files are idempotent — safe to re-run any time, on either machine.
 
@@ -34,7 +35,7 @@ The playbook installs Chrome, Obsidian, and VS Code (MS build) from
 the AUR via `yay`, using the `kewlfft.aur` Ansible collection. Unlike
 `community.general` (bundled with the `ansible` PyPI package), this
 one isn't bundled — `bootstrap.sh` installs it automatically as part
-of step 5, on both OSes. It's only *used* on Arch, but Ansible resolves
+of step 4, on both OSes. It's only *used* on Arch, but Ansible resolves
 every task's module up front regardless of `when` conditions, so the
 playbook fails to parse on macOS without it too — hence installing it
 unconditionally rather than gating it to Arch.
@@ -44,24 +45,30 @@ unconditionally rather than gating it to Arch.
 **`bootstrap.sh`**
 
 Before the numbered steps, it ensures `~/.local/bin` is on `PATH` for
-the session (uv tool installs and Claude Code's native installer both
-land executables there) — added only if missing, session-only, not
-written to any shell rc file. That's left to the chezmoi-managed
-dotfiles, same as Homebrew's `shellenv` in step 1.
+the session (uv tool installs land executables there) — added only if
+missing, session-only, not written to any shell rc file. That's left
+to the chezmoi-managed dotfiles, same as Homebrew's `shellenv` in
+step 1.
 
 | Step | Action |
 |---|---|
 | 0 | Install Xcode Command Line Tools (macOS only) |
 | 1 | Install Homebrew (macOS only) |
-| 2 | Install Claude Code |
-| 3 | Install `uv` and `gh` — brew on macOS, pacman on Arch |
-| 4 | `gh auth login` |
-| 5 | Install Ansible via `uv tool`, plus `kewlfft.aur` collection (both OSes) |
-| 6 | Clone `Notes` and `machine-bootstrap` to `~/repos` (`dotfiles` lives only in chezmoi's own clone, `~/.local/share/chezmoi` — see step 7) |
-| 7 | Run `playbook.yml` |
+| 2 | Install `uv` and `gh` — brew on macOS, pacman on Arch |
+| 3 | `gh auth login` |
+| 4 | Install Ansible via `uv tool`, plus `kewlfft.aur` collection (both OSes) |
+| 5 | Clone `Notes` and `machine-bootstrap` to `~/repos` (`dotfiles` lives only in chezmoi's own clone, `~/.local/share/chezmoi` — see step 6) |
+| 6 | Run `playbook.yml` (installs Claude Code first, then the rest of the standard toolset) |
 
 **`playbook.yml`**
 
+- Installs Claude Code first, before anything else — if a later step
+  fails, Claude Code is already on the machine to help debug it
+- Installs `herdr` via its own install script, on both OSes — not a
+  Homebrew formula or AUR package, since upstream doesn't publish an
+  AUR package and going through `yay` needed an interactive terminal
+  for every newly-added AUR package (see the "First run isn't fully
+  unattended" note below)
 - macOS: installs CLI tools via Homebrew formulae, GUI apps/fonts via
   Homebrew casks
 - Arch: installs official-repo packages via pacman, bootstraps `yay`
@@ -92,7 +99,15 @@ A couple of steps need you at the keyboard the first time only:
   task fails; sign in through the App Store app once, then re-run.
 
 Subsequent runs on an already-bootstrapped machine skip all of this
-and run non-interactively.
+and run non-interactively — with one exception: **Arch**, adding a
+*new* package to `aur_packages` re-triggers the same problem as the
+`yay` build above, every time, not just on a fresh machine. `yay`
+itself calls `sudo pacman -U` internally to install whatever it just
+built, and `kewlfft.aur` only invokes `yay` for packages that aren't
+already installed — so it fails with "sudo: a terminal is required to
+read the password" if run non-interactively, or blocks on a password
+prompt otherwise. Run `yay -S <new-package>` by hand once, then re-run
+the playbook — it'll see the package already installed and skip.
 
 ## Notes
 

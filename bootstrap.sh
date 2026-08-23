@@ -7,13 +7,13 @@
 # Steps:
 #   0. Install Xcode Command Line Tools (macOS only, if missing)
 #   1. Install Homebrew (macOS only, if missing)
-#   2. Install Claude Code (if missing)
-#   3. Install uv, gh — brew on macOS, pacman on Arch (if missing)
-#   4. gh auth login + wire gh credentials into git (if not already authenticated)
-#   5. Install ansible via uv tool, plus kewlfft.aur collection (both OSes)
-#   6. gh clone Notes and machine-bootstrap to ~/repos (dotfiles is
-#      cloned separately by chezmoi in step 7, not to ~/repos)
-#   7. run ansible playbook
+#   2. Install uv, gh — brew on macOS, pacman on Arch (if missing)
+#   3. gh auth login + wire gh credentials into git (if not already authenticated)
+#   4. Install ansible via uv tool, plus kewlfft.aur collection (both OSes)
+#   5. gh clone Notes and machine-bootstrap to ~/repos (dotfiles is
+#      cloned separately by chezmoi in step 6, not to ~/repos)
+#   6. run ansible playbook (which installs Claude Code first, then the
+#      rest of the standard toolset)
 #
 set -euo pipefail
 
@@ -22,9 +22,8 @@ log() { printf '\n\033[1;34m==>\033[0m %s\n' "$1"; }
 OS="$(uname -s)"
 
 # ---------------------------------------------------------------------------
-# ~/.local/bin on PATH — uv tool installs (step 5) and Claude Code's
-# native installer (step 2) both land executables here. Only added if
-# missing, and only for this script's own session.
+# ~/.local/bin on PATH — uv tool installs (step 4) land executables
+# here. Only added if missing, and only for this script's own session.
 # ---------------------------------------------------------------------------
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
   export PATH="$HOME/.local/bin:$PATH"
@@ -59,7 +58,7 @@ if [[ "$OS" == "Darwin" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 1. Homebrew (macOS only — Arch uses pacman, see step 3)
+# 1. Homebrew (macOS only — Arch uses pacman, see step 2)
 # ---------------------------------------------------------------------------
 if [[ "$OS" == "Darwin" ]]; then
   if ! command -v brew >/dev/null 2>&1; then
@@ -84,17 +83,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 2. Claude Code
-# ---------------------------------------------------------------------------
-if ! command -v claude >/dev/null 2>&1; then
-  log "Claude Code not found — installing from https://code.claude.com/docs/en/quickstart"
-  curl -fsSL https://claude.ai/install.sh | bash
-else
-  log "Claude Code already installed ($(claude --version 2>/dev/null || echo 'version unknown')) — skipping"
-fi
-
-# ---------------------------------------------------------------------------
-# 3. uv and gh — brew on macOS, pacman on Arch
+# 2. uv and gh — brew on macOS, pacman on Arch
 # ---------------------------------------------------------------------------
 log "Ensuring uv and gh are installed"
 if [[ "$OS" == "Darwin" ]]; then
@@ -107,9 +96,9 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. gh auth login, then wire gh's credentials into plain git
+# 3. gh auth login, then wire gh's credentials into plain git
 #
-# gh's own commands (gh repo clone, step 6) authenticate themselves and
+# gh's own commands (gh repo clone, step 5) authenticate themselves and
 # don't need this. But plain `git clone` — which is what chezmoi init
 # uses under the hood — has no idea gh is authenticated at all, and
 # will prompt for a username/password on any private repo without it.
@@ -125,7 +114,7 @@ log "Wiring gh credentials into git (gh auth setup-git)"
 gh auth setup-git
 
 # ---------------------------------------------------------------------------
-# 5. ansible via uv tool, plus the kewlfft.aur collection
+# 4. ansible via uv tool, plus the kewlfft.aur collection
 #
 # Installed unconditionally, on both OSes — even though it's only used
 # by Arch-specific tasks in the playbook, Ansible resolves every task's
@@ -143,7 +132,7 @@ log "Ensuring kewlfft.aur collection is installed"
 uv tool run --from ansible ansible-galaxy collection install kewlfft.aur
 
 # ---------------------------------------------------------------------------
-# 6. Clone repos to ~/repos
+# 5. Clone repos to ~/repos
 #
 # dotfiles isn't cloned here — chezmoi (via playbook.yml) clones it into
 # its own source directory instead (~/.local/share/chezmoi, aka
@@ -167,7 +156,7 @@ for repo in "${REPOS[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 7. Run ansible playbook
+# 6. Run ansible playbook
 # ---------------------------------------------------------------------------
 PLAYBOOK=~/repos/machine-bootstrap/playbook.yml
 if [[ -f "$PLAYBOOK" ]]; then
