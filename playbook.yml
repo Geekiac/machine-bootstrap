@@ -68,6 +68,7 @@
     # machine with no App Store account signed in yet, sign in via the
     # App Store app's GUI first, then re-run.
     mac_app_store_apps:
+      "Tailscale": 1475387142
       "Wipr 2": 1662217862
       "WhatsApp Messenger": 310633997
 
@@ -112,6 +113,7 @@
       - ripgrep
       - starship
       - steam
+      - tailscale
       - tldr
       - tmux
       - tree-sitter-cli
@@ -318,6 +320,23 @@
     - name: Enable and start ollama service
       ansible.builtin.systemd:
         name: ollama
+        enabled: true
+        state: started
+      become: true
+      when: ansible_facts['distribution'] == "Archlinux"
+
+    # -------------------------------------------------------------------
+    # Arch's tailscale package ships a systemd unit (tailscaled.service)
+    # but doesn't enable it, same underlying issue as the ollama service
+    # above: the binary's present but `tailscale up` has no daemon to
+    # talk to until the service is started. Doesn't run `tailscale up`
+    # itself — that needs an interactive browser-based login the first
+    # time, same class of one-off manual step as `yay -S` in
+    # CLAUDE.md's AUR notes.
+    # -------------------------------------------------------------------
+    - name: Enable and start tailscaled service
+      ansible.builtin.systemd:
+        name: tailscaled
         enabled: true
         state: started
       become: true
