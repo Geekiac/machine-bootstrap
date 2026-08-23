@@ -82,6 +82,9 @@ step 1.
   AUR package and going through `yay` needed an interactive terminal
   for every newly-added AUR package (see the "First run isn't fully
   unattended" note below)
+- Installs [`claude-usage`](https://github.com/phuryn/claude-usage) via
+  `uv tool install`, on both OSes — a local dashboard/CLI for Claude
+  Code token usage, cost estimates, and session history
 - macOS: installs CLI tools via Homebrew formulae, GUI apps/fonts via
   Homebrew casks
 - Arch: installs official-repo packages via pacman, bootstraps `yay`

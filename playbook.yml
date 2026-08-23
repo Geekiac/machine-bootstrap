@@ -1,9 +1,10 @@
 ---
 # playbook.yml
 #
-# Installs Claude Code and herdr via their own install scripts, the
-# standard toolset (per-OS package manager), a handful of global npm
-# packages via nvm, and applies chezmoi dotfiles from Geekiac/dotfiles.
+# Installs Claude Code and herdr via their own install scripts,
+# claude-usage via `uv tool install`, the standard toolset (per-OS
+# package manager), a handful of global npm packages via nvm, and
+# applies chezmoi dotfiles from Geekiac/dotfiles.
 # Safe to re-run — every task is state-checking, not action-repeating.
 #
 # Requires (both installed by `bootstrap.sh` step 4, not bundled with
@@ -218,6 +219,27 @@
       ansible.builtin.shell:
         cmd: curl -fsSL https://herdr.dev/install.sh | sh
       when: not herdr_bin.stat.exists
+
+    # -------------------------------------------------------------------
+    # claude-usage (https://github.com/phuryn/claude-usage) — a local
+    # dashboard/CLI for Claude Code token usage, cost estimates, and
+    # session history, reading the same local JSONL transcripts as the
+    # statusline. Installed via `uv tool install` rather than a Homebrew
+    # formula/AUR package: it's a dependency-free, stdlib-only Python
+    # tool, and `uv` is already on both OSes from bootstrap.sh, so one
+    # OS-agnostic install method covers both. `uv tool install` drops the
+    # `claude-usage` shim in ~/.local/bin, same stat-based idempotency
+    # check as Claude Code/herdr above.
+    # -------------------------------------------------------------------
+    - name: Check whether claude-usage is already installed
+      ansible.builtin.stat:
+        path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/claude-usage"
+      register: claude_usage_bin
+
+    - name: Install claude-usage
+      ansible.builtin.command:
+        cmd: uv tool install git+https://github.com/phuryn/claude-usage
+      when: not claude_usage_bin.stat.exists
 
     # -------------------------------------------------------------------
     # macOS
