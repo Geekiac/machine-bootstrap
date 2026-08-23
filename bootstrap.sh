@@ -8,12 +8,13 @@
 #   0. Install Xcode Command Line Tools (macOS only, if missing)
 #   1. Install Homebrew (macOS only, if missing)
 #   2. Install uv, gh — brew on macOS, pacman on Arch (if missing)
-#   3. gh auth login + wire gh credentials into git (if not already authenticated)
-#   4. Install ansible-core via uv tool, plus community.general and
-#      kewlfft.aur collections (both OSes)
-#   5. gh clone Notes and machine-bootstrap to ~/repos (dotfiles is
-#      cloned separately by chezmoi in step 6, not to ~/repos)
-#   6. run ansible playbook (which installs Claude Code first, then the
+#   3. Install yay and AUR packages (Arch only, if missing)
+#   4. gh auth login + wire gh credentials into git (if not already authenticated)
+#   5. Install ansible-core via uv tool, plus the community.general
+#      collection (both OSes)
+#   6. gh clone Notes and machine-bootstrap to ~/repos (dotfiles is
+#      cloned separately by chezmoi in step 7, not to ~/repos)
+#   7. run ansible playbook (which installs Claude Code first, then the
 #      rest of the standard toolset)
 #
 set -euo pipefail
@@ -23,7 +24,7 @@ log() { printf '\n\033[1;34m==>\033[0m %s\n' "$1"; }
 OS="$(uname -s)"
 
 # ---------------------------------------------------------------------------
-# ~/.local/bin on PATH — uv tool installs (step 4) land executables
+# ~/.local/bin on PATH — uv tool installs (step 5) land executables
 # here. Only added if missing, and only for this script's own session.
 # ---------------------------------------------------------------------------
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
@@ -97,7 +98,46 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 3. gh auth login, then wire gh's credentials into plain git
+# 3. yay (AUR helper) + AUR packages — Arch only
+#
+# Builds yay from source if missing, then installs the packages below
+# via yay. Done here, in this script's own interactive shell, rather
+# than in playbook.yml deliberately: yay calls `sudo` internally, both
+# to build itself (makepkg -si) and to install each package it builds
+# (yay -S), and that inner sudo call has no TTY to read a password
+# from when invoked through Ansible's command module — even though the
+# outer `ansible-playbook --ask-become-pass` run is interactive, that
+# password only covers Ansible's own privilege escalation, not this
+# separate sudo call yay makes on its own. Running it here sidesteps
+# that entirely — the first-time yay build and every future addition
+# to AUR_PACKAGES both just work, no special-casing needed.
+# visual-studio-code-bin is the MS-branded build (Marketplace access,
+# matches the Homebrew cask) rather than the official repo's "code"
+# (open-source vscode-oss build, Open VSX only).
+# ---------------------------------------------------------------------------
+if [[ "$OS" == "Linux" ]] && command -v pacman >/dev/null 2>&1; then
+  AUR_PACKAGES=(
+    google-chrome
+    visual-studio-code-bin
+  )
+
+  if ! command -v yay >/dev/null 2>&1; then
+    log "yay not found — building from AUR"
+    sudo pacman -S --needed --noconfirm base-devel git
+    rm -rf /tmp/yay-build
+    git clone https://aur.archlinux.org/yay.git /tmp/yay-build
+    (cd /tmp/yay-build && makepkg -si --noconfirm)
+    rm -rf /tmp/yay-build
+  else
+    log "yay already installed — skipping"
+  fi
+
+  log "Ensuring AUR packages are installed: ${AUR_PACKAGES[*]}"
+  yay -S --needed --noconfirm "${AUR_PACKAGES[@]}"
+fi
+
+# ---------------------------------------------------------------------------
+# 4. gh auth login, then wire gh's credentials into plain git
 #
 # gh's own commands (gh repo clone, step 5) authenticate themselves and
 # don't need this. But plain `git clone` — which is what chezmoi init
@@ -115,17 +155,15 @@ log "Wiring gh credentials into git (gh auth setup-git)"
 gh auth setup-git
 
 # ---------------------------------------------------------------------------
-# 4. ansible-core via uv tool, plus the community.general and kewlfft.aur
-#    collections
+# 5. ansible-core via uv tool, plus the community.general collection
 #
 # ansible-core (not the full "ansible" metapackage) is all that's needed —
 # ansible-playbook/ansible-galaxy are its executables, and the only
-# collections the playbook uses beyond ansible.builtin are installed
+# collection the playbook uses beyond ansible.builtin is installed
 # explicitly below. Installed unconditionally, on both OSes — even though
-# community.general and kewlfft.aur are only used by Arch-specific tasks
-# in the playbook, Ansible resolves every task's module up front
-# regardless of its `when` condition, so the playbook fails to parse on
-# macOS without these present too.
+# community.general is only used by Arch-specific tasks in the playbook,
+# Ansible resolves every task's module up front regardless of its `when`
+# condition, so the playbook fails to parse on macOS without it present too.
 # ---------------------------------------------------------------------------
 if ! uv tool list 2>/dev/null | grep -q '^ansible-core '; then
   log "Installing ansible-core via uv tool"
@@ -134,11 +172,11 @@ else
   log "ansible-core already installed via uv tool — skipping"
 fi
 
-log "Ensuring community.general and kewlfft.aur collections are installed"
-uv tool run --from ansible-core ansible-galaxy collection install community.general kewlfft.aur
+log "Ensuring community.general collection is installed"
+uv tool run --from ansible-core ansible-galaxy collection install community.general
 
 # ---------------------------------------------------------------------------
-# 5. Clone repos to ~/repos
+# 6. Clone repos to ~/repos
 #
 # dotfiles isn't cloned here — chezmoi (via playbook.yml) clones it into
 # its own source directory instead (~/.local/share/chezmoi, aka
@@ -162,7 +200,7 @@ for repo in "${REPOS[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# 6. Run ansible playbook
+# 7. Run ansible playbook
 # ---------------------------------------------------------------------------
 PLAYBOOK=~/repos/machine-bootstrap/playbook.yml
 if [[ -f "$PLAYBOOK" ]]; then

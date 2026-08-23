@@ -7,30 +7,21 @@
 # applies chezmoi dotfiles from Geekiac/dotfiles.
 # Safe to re-run — every task is state-checking, not action-repeating.
 #
-# Requires (both installed by `bootstrap.sh` step 4, not bundled with
+# Requires (installed by `bootstrap.sh` step 5, not bundled with
 # `ansible-core`):
 #   - community.general collection, for the pacman module.
-#   - kewlfft.aur collection, for installing AUR packages via yay.
-# Install both once with:
-#   uv tool run --from ansible-core ansible-galaxy collection install community.general kewlfft.aur
+# Install with:
+#   uv tool run --from ansible-core ansible-galaxy collection install community.general
 #
-# First Arch run must be interactive: building yay via makepkg calls
-# `sudo` internally partway through (separate from Ansible's own
-# --ask-become-pass), so it'll pause for your password mid-build the
-# first time only, same pattern as the Xcode CLT step on macOS.
-#
-# The same applies whenever a NEW package is added to aur_packages below
-# — not just on a fresh machine. yay itself (not just building yay) calls
-# `sudo pacman -U` internally to install the package it just built, and
-# that call has no way to read a password non-interactively (no -S flag,
-# no askpass helper configured). kewlfft.aur only invokes yay for
-# packages that aren't already installed, so this is silent on re-runs
-# of existing packages but bites again for each new addition: it'll fail
-# with "sudo: a terminal is required to read the password" if run
-# non-interactively (e.g. backgrounded, redirected output), or block on
-# a password prompt if run in a real terminal. Fix: run
-# `yay -S <new-package>` by hand first, then re-run the playbook — it'll
-# see the package already installed and skip.
+# Arch's AUR packages — yay itself, plus google-chrome and
+# visual-studio-code-bin — are installed by bootstrap.sh (step 3), not
+# this playbook. yay calls `sudo` internally both to build itself and
+# to install whatever it just built, and that inner sudo call has no
+# TTY to read a password from when invoked through Ansible's command
+# module — even though `ansible-playbook --ask-become-pass` is
+# interactive, that password only covers Ansible's own privilege
+# escalation, not yay's separate sudo call. Doing it in bootstrap.sh's
+# own interactive shell instead sidesteps that entirely.
 #
 # Run with:
 #   uv tool run --from ansible-core ansible-playbook playbook.yml --ask-become-pass
@@ -94,10 +85,10 @@
     # Font is "ttf-firacode-nerd" (post-v3 nerd-fonts split naming).
     # steam needs the multilib repo enabled — see the task below that
     # does it. VS Code isn't here — it's AUR-only for the MS-branded
-    # build, see aur_packages below. fuse2 isn't for anything in this
-    # list — it's libfuse.so.2, which Obsidian's AppImage (see the task
-    # below, near AUR packages) needs to mount itself at launch; Arch
-    # doesn't pull it in by default.
+    # build, installed by bootstrap.sh (see its AUR_PACKAGES). fuse2
+    # isn't for anything in this list — it's libfuse.so.2, which
+    # Obsidian's AppImage (see the task below) needs to mount itself at
+    # launch; Arch doesn't pull it in by default.
     pacman_packages:
       - bash-completion
       - bat
@@ -128,20 +119,6 @@
       - wget
       - yazi
       - zoxide
-
-    # Arch — AUR packages, via yay (bootstrapped below if missing).
-    # visual-studio-code-bin is the MS-branded build (Marketplace access,
-    # matches the Homebrew cask) rather than the official repo's "code"
-    # (open-source vscode-oss build, Open VSX only). herdr isn't here —
-    # see the herdr task below, installed via its own script on both
-    # OSes instead. obsidian isn't here either — it's not in the official
-    # repos, only the AUR, but rather than fight AUR's first-time
-    # sudo/tty requirement (see the top of this file) for a GUI app that
-    # publishes its own Linux build, it's installed from the official
-    # AppImage instead — see the task below, near the AUR packages.
-    aur_packages:
-      - google-chrome
-      - visual-studio-code-bin
 
     # Global npm packages, installed under nvm's managed Node rather than
     # any system npm. Assumes nvm is already installed (see
@@ -196,12 +173,9 @@
     # herdr — installed via its own curl|sh script rather than a package
     # manager, on both OSes (no `when` guard), instead of a Homebrew
     # formula on macOS and the third-party herdr-bin AUR package on Arch.
-    # Upstream doesn't publish an AUR package itself, and going through
-    # yay meant every newly-added AUR package needed an interactive
-    # terminal for yay's internal `sudo pacman -U` install step (see the
-    # header comment above) — this is genuinely new-package-only pain,
-    # not a one-time bootstrap cost, so it's worth avoiding here. The
-    # official installer (https://herdr.dev/docs/install/) verifies a
+    # Upstream doesn't publish an AUR package itself — herdr-bin is a
+    # community package — so the official installer
+    # (https://herdr.dev/docs/install/) is used instead: it verifies a
     # SHA-256 checksum against a signed release manifest and drops the
     # binary in ~/.local/bin with no sudo involved. herdr self-updates
     # (`herdr update`) once installed, so this task only needs to run
@@ -350,66 +324,15 @@
       when: ansible_facts['distribution'] == "Archlinux"
 
     # -------------------------------------------------------------------
-    # Arch — yay (AUR helper), bootstrapped from source if missing
-    # -------------------------------------------------------------------
-    - name: Check whether yay is already installed
-      ansible.builtin.command: which yay
-      register: yay_check
-      changed_when: false
-      failed_when: false
-      when: ansible_facts['distribution'] == "Archlinux"
-
-    - name: Install base-devel and git (required to build yay)
-      community.general.pacman:
-        name:
-          - base-devel
-          - git
-        state: present
-      become: true
-      when:
-        - ansible_facts['distribution'] == "Archlinux"
-        - yay_check.rc != 0
-
-    - name: Clone yay from the AUR
-      ansible.builtin.git:
-        repo: https://aur.archlinux.org/yay.git
-        dest: /tmp/yay-build
-      when:
-        - ansible_facts['distribution'] == "Archlinux"
-        - yay_check.rc != 0
-      # No become: makepkg refuses to run as root.
-
-    - name: Build and install yay
-      ansible.builtin.command:
-        cmd: makepkg -si --noconfirm
-        chdir: /tmp/yay-build
-      when:
-        - ansible_facts['distribution'] == "Archlinux"
-        - yay_check.rc != 0
-      # makepkg calls sudo internally for the final package install —
-      # that's the interactive pause mentioned at the top of this file.
-
-    # -------------------------------------------------------------------
-    # Arch — AUR packages via yay
-    # -------------------------------------------------------------------
-    - name: Install AUR packages via yay
-      kewlfft.aur.aur:
-        name: "{{ aur_packages }}"
-        use: yay
-        state: present
-      when: ansible_facts['distribution'] == "Archlinux"
-      # No become: AUR builds must not run as root, same as yay itself.
-
-    # -------------------------------------------------------------------
     # Arch — Obsidian via its official AppImage, not the AUR
     #
     # obsidian isn't in the official repos, only the AUR — but rather
-    # than route a GUI app through yay's first-time sudo/tty wall (see
-    # the top of this file) for a package that publishes its own Linux
-    # build directly, this downloads the AppImage straight from GitHub
-    # and drops it in ~/.local/bin, same "installer lands a binary on
-    # PATH" pattern as Claude Code and herdr above. No become: writes to
-    # the invoking user's own ~/.local/bin.
+    # than add another entry to bootstrap.sh's AUR package list for a
+    # GUI app that publishes its own Linux build directly, this
+    # downloads the AppImage straight from GitHub and drops it in
+    # ~/.local/bin, same "installer lands a binary on PATH" pattern as
+    # Claude Code and herdr above. No become: writes to the invoking
+    # user's own ~/.local/bin.
     #
     # GitHub's /releases/latest endpoint isn't reliable here — this repo
     # also publishes Android-only releases (assets are just a .apk) that
