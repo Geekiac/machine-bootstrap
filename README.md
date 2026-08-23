@@ -32,13 +32,15 @@ fetch the script on a completely fresh machine.
 ## kewlfft.aur collection
 
 The playbook installs Chrome, Obsidian, and VS Code (MS build) from
-the AUR via `yay`, using the `kewlfft.aur` Ansible collection. Unlike
-`community.general` (bundled with the `ansible` PyPI package), this
-one isn't bundled — `bootstrap.sh` installs it automatically as part
-of step 4, on both OSes. It's only *used* on Arch, but Ansible resolves
-every task's module up front regardless of `when` conditions, so the
-playbook fails to parse on macOS without it too — hence installing it
-unconditionally rather than gating it to Arch.
+the AUR via `yay`, using the `kewlfft.aur` Ansible collection, and
+uses `community.general` for pacman. `bootstrap.sh` installs Ansible
+as the lean `ansible-core` PyPI package (not the full `ansible`
+metapackage) and installs both collections explicitly via
+`ansible-galaxy` as part of step 4, on both OSes. They're only *used*
+on Arch, but Ansible resolves every task's module up front regardless
+of `when` conditions, so the playbook fails to parse on macOS without
+them too — hence installing them unconditionally rather than gating
+to Arch.
 
 ## What it does
 
@@ -56,7 +58,7 @@ step 1.
 | 1 | Install Homebrew (macOS only) |
 | 2 | Install `uv` and `gh` — brew on macOS, pacman on Arch |
 | 3 | `gh auth login` |
-| 4 | Install Ansible via `uv tool`, plus `kewlfft.aur` collection (both OSes) |
+| 4 | Install `ansible-core` via `uv tool`, plus `community.general` and `kewlfft.aur` collections (both OSes) |
 | 5 | Clone `Notes` and `machine-bootstrap` to `~/repos` (`dotfiles` lives only in chezmoi's own clone, `~/.local/share/chezmoi` — see step 6) |
 | 6 | Run `playbook.yml` (installs Claude Code first, then the rest of the standard toolset) |
 

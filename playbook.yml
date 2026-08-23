@@ -6,13 +6,12 @@
 # packages via nvm, and applies chezmoi dotfiles from Geekiac/dotfiles.
 # Safe to re-run — every task is state-checking, not action-repeating.
 #
-# Requires:
-#   - community.general collection (bundled with `ansible`, the PyPI
-#     meta-package — already the case if installed via
-#     `uv tool install ansible` rather than the bare `ansible-core`).
+# Requires (both installed by `bootstrap.sh` step 4, not bundled with
+# `ansible-core`):
+#   - community.general collection, for the pacman module.
 #   - kewlfft.aur collection, for installing AUR packages via yay.
-#     NOT bundled by default — install once with:
-#       uv tool run --from ansible ansible-galaxy collection install kewlfft.aur
+# Install both once with:
+#   uv tool run --from ansible-core ansible-galaxy collection install community.general kewlfft.aur
 #
 # First Arch run must be interactive: building yay via makepkg calls
 # `sudo` internally partway through (separate from Ansible's own
@@ -33,7 +32,7 @@
 # see the package already installed and skip.
 #
 # Run with:
-#   uv tool run --from ansible ansible-playbook playbook.yml --ask-become-pass
+#   uv tool run --from ansible-core ansible-playbook playbook.yml --ask-become-pass
 
 - name: Bootstrap standard toolset
   hosts: localhost
@@ -177,7 +176,7 @@
     # -------------------------------------------------------------------
     - name: Check whether Claude Code is already installed
       ansible.builtin.stat:
-        path: "{{ ansible_env.HOME }}/.local/bin/claude"
+        path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/claude"
       register: claude_bin
 
     - name: Install Claude Code
@@ -205,7 +204,7 @@
     # -------------------------------------------------------------------
     - name: Check whether herdr is already installed
       ansible.builtin.stat:
-        path: "{{ ansible_env.HOME }}/.local/bin/herdr"
+        path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/herdr"
       register: herdr_bin
 
     - name: Install herdr
@@ -281,7 +280,7 @@
     # -------------------------------------------------------------------
     - name: Ensure nvm working directory exists
       ansible.builtin.file:
-        path: "{{ ansible_env.HOME }}/.nvm"
+        path: "{{ ansible_facts['env']['HOME'] }}/.nvm"
         state: directory
         mode: "0755"
 
@@ -468,7 +467,7 @@
     # -------------------------------------------------------------------
     - name: Check whether chezmoi has already been initialized
       ansible.builtin.stat:
-        path: "{{ ansible_env.HOME }}/.local/share/chezmoi"
+        path: "{{ ansible_facts['env']['HOME'] }}/.local/share/chezmoi"
       register: chezmoi_source
 
     - name: Initialize chezmoi from dotfiles repo
@@ -512,18 +511,18 @@
     # -------------------------------------------------------------------
     - name: Check whether Doom Emacs is already cloned
       ansible.builtin.stat:
-        path: "{{ ansible_env.HOME }}/.config/emacs"
+        path: "{{ ansible_facts['env']['HOME'] }}/.config/emacs"
       register: doom_emacs_dir
 
     - name: Clone Doom Emacs
       ansible.builtin.git:
         repo: https://github.com/doomemacs/core
-        dest: "{{ ansible_env.HOME }}/.config/emacs"
+        dest: "{{ ansible_facts['env']['HOME'] }}/.config/emacs"
         depth: 1
       when: not doom_emacs_dir.stat.exists
 
     - name: Install Doom Emacs (deploys DOOMDIR, installs packages)
       ansible.builtin.command:
-        cmd: "{{ ansible_env.HOME }}/.config/emacs/bin/doom install --force"
+        cmd: "{{ ansible_facts['env']['HOME'] }}/.config/emacs/bin/doom install --force"
       when: not doom_emacs_dir.stat.exists
       changed_when: true

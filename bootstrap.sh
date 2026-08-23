@@ -9,7 +9,8 @@
 #   1. Install Homebrew (macOS only, if missing)
 #   2. Install uv, gh — brew on macOS, pacman on Arch (if missing)
 #   3. gh auth login + wire gh credentials into git (if not already authenticated)
-#   4. Install ansible via uv tool, plus kewlfft.aur collection (both OSes)
+#   4. Install ansible-core via uv tool, plus community.general and
+#      kewlfft.aur collections (both OSes)
 #   5. gh clone Notes and machine-bootstrap to ~/repos (dotfiles is
 #      cloned separately by chezmoi in step 6, not to ~/repos)
 #   6. run ansible playbook (which installs Claude Code first, then the
@@ -114,22 +115,27 @@ log "Wiring gh credentials into git (gh auth setup-git)"
 gh auth setup-git
 
 # ---------------------------------------------------------------------------
-# 4. ansible via uv tool, plus the kewlfft.aur collection
+# 4. ansible-core via uv tool, plus the community.general and kewlfft.aur
+#    collections
 #
-# Installed unconditionally, on both OSes — even though it's only used
-# by Arch-specific tasks in the playbook, Ansible resolves every task's
-# module up front regardless of its `when` condition, so the playbook
-# fails to parse on macOS without this present too.
+# ansible-core (not the full "ansible" metapackage) is all that's needed —
+# ansible-playbook/ansible-galaxy are its executables, and the only
+# collections the playbook uses beyond ansible.builtin are installed
+# explicitly below. Installed unconditionally, on both OSes — even though
+# community.general and kewlfft.aur are only used by Arch-specific tasks
+# in the playbook, Ansible resolves every task's module up front
+# regardless of its `when` condition, so the playbook fails to parse on
+# macOS without these present too.
 # ---------------------------------------------------------------------------
-if ! uv tool list 2>/dev/null | grep -q '^ansible '; then
-  log "Installing ansible via uv tool"
-  uv tool install ansible
+if ! uv tool list 2>/dev/null | grep -q '^ansible-core '; then
+  log "Installing ansible-core via uv tool"
+  uv tool install ansible-core
 else
-  log "ansible already installed via uv tool — skipping"
+  log "ansible-core already installed via uv tool — skipping"
 fi
 
-log "Ensuring kewlfft.aur collection is installed"
-uv tool run --from ansible ansible-galaxy collection install kewlfft.aur
+log "Ensuring community.general and kewlfft.aur collections are installed"
+uv tool run --from ansible-core ansible-galaxy collection install community.general kewlfft.aur
 
 # ---------------------------------------------------------------------------
 # 5. Clone repos to ~/repos
@@ -161,7 +167,7 @@ done
 PLAYBOOK=~/repos/machine-bootstrap/playbook.yml
 if [[ -f "$PLAYBOOK" ]]; then
   log "Running ansible playbook: $PLAYBOOK"
-  uv tool run --from ansible ansible-playbook "$PLAYBOOK" --ask-become-pass
+  uv tool run --from ansible-core ansible-playbook "$PLAYBOOK" --ask-become-pass
 else
   log "Playbook not found at $PLAYBOOK — skipping"
 fi
