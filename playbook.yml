@@ -105,7 +105,6 @@
       - ripgrep
       - starship
       - steam
-      - tlrc
       - tmux
       - tree-sitter-cli
       - ttf-firacode-nerd
@@ -126,6 +125,7 @@
       - google-chrome
       - herdr-bin
       - obsidian
+      - tlrc
       - visual-studio-code-bin
 
     # Global npm packages, installed under nvm's managed Node rather than
