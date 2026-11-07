@@ -72,14 +72,93 @@
       "Wipr 2": 1662217862
       "WhatsApp Messenger": 310633997
 
+    # Browsers match nix-config's modules/browsers.nix as closely as macOS
+    # allows: Firefox, plus Brave in place of NixOS's Chromium (Homebrew's
+    # chromium cask is disabled — it fails Gatekeeper — and Brave is the
+    # intended Chromium-based browser on both once nixpkgs carries it
+    # again). Both are hardened via the configuration profile below.
     homebrew_casks:
+      - 1password
+      - brave-browser
       - discord
+      - firefox
       - ghostty
       - font-fira-code-nerd-font
-      - google-chrome
       - obsidian
       - steam
       - visual-studio-code
+
+    # Browser hardening — mirrors nix-config's modules/browsers.nix, which
+    # applies the same policies on NixOS. Change both together.
+    #
+    # macOS only honours browser policies delivered as managed preferences,
+    # i.e. a configuration profile, so these are rendered into one
+    # .mobileconfig (templates/browser-policies.mobileconfig.j2) that has
+    # to be approved in System Settings — see the tasks below.
+    firefox_policies:
+      DisableTelemetry: true
+      DisableFirefoxStudies: true
+      HttpsOnlyMode: force_enabled
+      SearchEngines:
+        Default: DuckDuckGo
+      # Credentials, cards and addresses live in 1Password, not the browser.
+      OfferToSaveLogins: false
+      AutofillCreditCardEnabled: false
+      AutofillAddressEnabled: false
+      # Widevine, so Netflix and similar play.
+      EncryptedMediaExtensions:
+        Enabled: true
+      FirefoxHome:
+        SponsoredTopSites: false
+        SponsoredPocket: false
+      FirefoxSuggest:
+        SponsoredSuggestions: false
+        ImproveSuggest: false
+      ExtensionSettings:
+        uBlock0@raymondhill.net:
+          installation_mode: force_installed
+          install_url: https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi
+        "{d634138d-c276-4fc8-924b-40a0ea21d284}": # 1Password
+          installation_mode: force_installed
+          install_url: https://addons.mozilla.org/firefox/downloads/latest/1password-x-password-manager/latest.xpi
+      # Enhanced Tracking Protection: Strict, as a default rather than
+      # locked, so a broken site can still be fixed from the shield icon.
+      Preferences:
+        browser.contentblocking.category:
+          Value: strict
+          Status: default
+
+    brave_policies:
+      # Standard Chromium policies — the same set NixOS applies to Chromium.
+      # No uBlock Origin Lite here: Brave Shields already blocks ads/trackers.
+      ExtensionInstallForcelist:
+        - aeblfdkhhhdcdjpifhhbdiojplfjncoa # 1Password
+      DefaultSearchProviderEnabled: true
+      DefaultSearchProviderName: DuckDuckGo
+      DefaultSearchProviderSearchURL: "https://duckduckgo.com/?q={searchTerms}"
+      DefaultSearchProviderSuggestURL: "https://duckduckgo.com/ac/?q={searchTerms}&type=list"
+      MetricsReportingEnabled: false
+      UrlKeyedAnonymizedDataCollectionEnabled: false
+      SyncDisabled: true
+      BackgroundModeEnabled: false
+      BlockThirdPartyCookies: true
+      HttpsOnlyMode: force_enabled
+      PasswordManagerEnabled: false
+      PaymentMethodQueryEnabled: false
+      AutofillSettings:
+        - url_pattern: "*"
+          blocked_types: [contact_info, payments, identity_docs, travel]
+      # Standard Safe Browsing on; 1 rules out Enhanced, which sends browsing
+      # data to Google.
+      SafeBrowsingProtectionLevel: 1
+      # Brave's own equivalents of Chromium's metrics switches (names from
+      # brave-core's brave_simple_policy_map.h), and its crypto/VPN upsells.
+      BraveP3AEnabled: false
+      BraveStatsPingEnabled: false
+      BraveWebDiscoveryEnabled: false
+      BraveRewardsDisabled: true
+      BraveWalletDisabled: true
+      BraveVPNDisabled: true
 
     # Arch — official-repo packages, via pacman. Two names differ from
     # what you'd guess: fortune is "fortune-mod", and the Fira Code Nerd
@@ -238,13 +317,21 @@
       when: ansible_facts['os_family'] == "Darwin"
       # Homebrew must NOT run as root — no become here.
 
+    # An app installed outside Homebrew (e.g. Firefox or 1Password from
+    # their own websites) makes `brew install --cask` exit non-zero with
+    # "It seems there is already an App at ...". That app is what we wanted
+    # on the machine anyway, so it's treated as present, not as a failure.
     - name: Install Homebrew casks
       ansible.builtin.command:
         cmd: "brew install --cask {{ item }}"
       loop: "{{ homebrew_casks }}"
       register: brew_cask_result
-      changed_when: "'already installed' not in (brew_cask_result.stdout + brew_cask_result.stderr)"
-      failed_when: brew_cask_result.rc != 0
+      changed_when: >-
+        'already installed' not in (brew_cask_result.stdout + brew_cask_result.stderr)
+        and 'already an App at' not in (brew_cask_result.stdout + brew_cask_result.stderr)
+      failed_when: >-
+        brew_cask_result.rc != 0
+        and 'already an App at' not in (brew_cask_result.stdout + brew_cask_result.stderr)
       when: ansible_facts['os_family'] == "Darwin"
 
     - name: Install Mac App Store apps
@@ -261,6 +348,61 @@
       # on ("invalid literal for int() with base 10: ''"). Same class of
       # output-parsing fragility as the Homebrew modules avoided above;
       # trusting `mas install`'s own exit code/stdout instead sidesteps it.
+
+    # -------------------------------------------------------------------
+    # Browser hardening profile (macOS). Firefox and Brave only read
+    # enterprise policies from managed preferences, which on current macOS
+    # can only come from a configuration profile — and a profile can't be
+    # installed silently any more (`profiles install` was retired), so this
+    # renders firefox_policies/brave_policies into a .mobileconfig and
+    # `open`s it, which queues it in System Settings → General → Device
+    # Management for you to approve. Another one-off manual step, like the
+    # App Store sign-in.
+    #
+    # Re-opened only when the rendered profile changed (policies edited) or
+    # Brave's managed-preferences file is missing (profile never approved,
+    # or removed) — so an already-approved, unchanged profile is a no-op.
+    # Fixed PayloadUUIDs (to_uuid of a fixed name) make a re-approved
+    # profile replace the old one instead of installing alongside it.
+    # -------------------------------------------------------------------
+    - name: Ensure machine-bootstrap's local data directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_facts['env']['HOME'] }}/.local/share/machine-bootstrap"
+        state: directory
+        mode: "0755"
+      when: ansible_facts['os_family'] == "Darwin"
+
+    - name: Render browser policy configuration profile
+      ansible.builtin.template:
+        src: templates/browser-policies.mobileconfig.j2
+        dest: "{{ ansible_facts['env']['HOME'] }}/.local/share/machine-bootstrap/browser-policies.mobileconfig"
+        mode: "0644"
+      register: browser_profile
+      when: ansible_facts['os_family'] == "Darwin"
+
+    - name: Check whether the browser policy profile is installed
+      ansible.builtin.stat:
+        path: /Library/Managed Preferences/com.brave.Browser.plist
+      register: brave_managed_prefs
+      when: ansible_facts['os_family'] == "Darwin"
+
+    - name: Queue browser policy profile for approval in System Settings
+      ansible.builtin.command:
+        cmd: "open {{ browser_profile.dest | quote }}"
+      when:
+        - ansible_facts['os_family'] == "Darwin"
+        - browser_profile.changed or not brave_managed_prefs.stat.exists
+      changed_when: true
+
+    - name: Remind to approve the browser policy profile
+      ansible.builtin.debug:
+        msg: >-
+          Approve "Browser hardening" in System Settings → General → Device
+          Management, then restart Firefox and Brave. Check with
+          about:policies and brave://policy.
+      when:
+        - ansible_facts['os_family'] == "Darwin"
+        - browser_profile.changed or not brave_managed_prefs.stat.exists
 
     # -------------------------------------------------------------------
     # `brew install ollama` only lays down the binary — it doesn't start

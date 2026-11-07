@@ -7,7 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Bootstraps Arch and macOS machines from nothing to a working dev environment. Two files do all the work:
 
 - **`bootstrap.sh`** — a shell script for a fresh machine with nothing on it. Installs Xcode CLT (macOS), Homebrew or pacman, `uv`, `gh`, and Ansible, then hands off to `playbook.yml`.
-- **`playbook.yml`** — an Ansible playbook that installs Claude Code first (deliberately — so it's available to help debug if any later step fails), then the rest of the standard toolset (Homebrew formulae/casks on macOS, pacman/AUR on Arch), and applies dotfiles from `Geekiac/dotfiles` via chezmoi.
+- **`playbook.yml`** — an Ansible playbook that installs Claude Code first (deliberately — so it's available to help debug if any later step fails), then the rest of the standard toolset (Homebrew formulae/casks on macOS, pacman/AUR on Arch), hardens the macOS browsers, and applies dotfiles from `Geekiac/dotfiles` via chezmoi.
+
+`templates/` holds the Jinja templates the playbook renders — currently only `browser-policies.mobileconfig.j2`.
 
 Both are idempotent — designed to be re-run safely any time, on either OS.
 
@@ -21,6 +23,8 @@ There is no build step, test suite, or linter in this repo. "Development" here m
 bash bootstrap.sh                                                       # full run
 uv tool run --from ansible-core ansible-playbook playbook.yml --ask-become-pass   # playbook only, if ansible-core/collections already installed
 ```
+
+Two checks that work from any machine, including the NixOS boxes, without touching it: `ansible-playbook --syntax-check playbook.yml` (needs `community.general` and `kewlfft.aur` on `ANSIBLE_COLLECTIONS_PATH` — install them with `ansible-galaxy collection install -p <dir>` into a scratch dir), and rendering the browser profile template against the play's vars on localhost, then parsing the result with Python's `plistlib` to confirm it's a valid plist with the expected types.
 
 There's no CI and no sandbox for a "fresh machine" — changes are generally validated by re-running on an already-bootstrapped machine (where most steps should no-op) or reasoning carefully about the fresh-machine path, since a bad change can't be safely tested from scratch without an actual clean VM/container per OS.
 
@@ -36,9 +40,14 @@ There's no CI and no sandbox for a "fresh machine" — changes are generally val
 - **Arch's fortune package is `fortune-mod`**, not `fortune` — the name differs from the macOS Homebrew formula and from what you'd guess. Same pattern for the Fira Code Nerd Font: `ttf-firacode-nerd` on Arch vs `font-fira-code-nerd-font` on macOS.
 - **The `nvm` Homebrew formula doesn't create its own working directory** — its caveat says to create `~/.nvm` manually. `playbook.yml` does this via an unconditional `ansible.builtin.file` task (no `when` guard) rather than gating it to macOS, since it's harmless on Arch too. Same "just do it on both OSes" reasoning as the `kewlfft.aur` install above.
 - **Obsidian on Arch installs from its own AppImage, not the AUR** — deliberately avoiding the interactive-sudo wall described above for a GUI app that publishes its own Linux build directly. `playbook.yml` walks GitHub's `/releases` list (not `/releases/latest`, which can be an Android-only release with no AppImage asset) via a Jinja `selectattr`/`map` chain to find the newest release that ships a desktop `Obsidian-*.AppImage`, then downloads it straight to `~/.local/bin/obsidian` — same "installer lands a binary on PATH" pattern as Claude Code/herdr, including the same one-shot check-then-skip idempotency (no auto-update on re-run; Obsidian's own in-app updater takes over from there). Needs `fuse2` (`libfuse.so.2`) in `pacman_packages`, since Arch doesn't install it by default and the AppImage refuses to launch without it. macOS still gets Obsidian via the Homebrew cask, unaffected.
+- **macOS browser hardening mirrors `~/repos/nix-config`'s `modules/browsers.nix`.** `firefox_policies`/`brave_policies` in `playbook.yml` are the same policy set NixOS applies to Firefox/Chromium — change both repos together. Differences are deliberate: Brave instead of Chromium (Homebrew's `chromium` cask is disabled for failing Gatekeeper; Brave is also the intended browser on NixOS once nixpkgs carries it again), Brave Shields instead of uBlock Origin Lite, Brave's own telemetry/upsell policies (names from brave-core's `brave_simple_policy_map.h`), and no `DisableAppUpdate` (casks self-update; NixOS adds that one itself). Chromium retires policy names often — after a change, check `brave://policy` for *Deprecated*/*Error* entries.
+- **The policies reach the browsers only through a configuration profile.** Firefox and Brave read macOS *managed* preferences, which only a profile can set, and `profiles install` no longer works — so the playbook renders `templates/browser-policies.mobileconfig.j2` and `open`s it for GUI approval (another keyboard-required step, like the App Store sign-in). It re-opens only when the rendered file changed or `/Library/Managed Preferences/com.brave.Browser.plist` is missing. `PayloadUUID`s come from `to_uuid` of fixed identifiers so an updated profile replaces the installed one; don't randomise them. The template's `plist()` macro tests `boolean` before `integer` because YAML booleans are Python ints.
+- **The cask install task tolerates "It seems there is already an App at …"** — an app installed outside Homebrew (e.g. Firefox from mozilla.org) makes `brew install --cask` exit 1, but it's the app we wanted. This is the one place the cask task reads output beyond the exit code; keep it narrow.
 - **chezmoi lifecycle**: `init` only runs once (guarded by checking whether `~/.local/share/chezmoi` exists), `apply` runs every invocation. Keep this split if touching those tasks.
 - **No secrets live in this repo.** Anything sensitive (API keys, Ansible Vault-encrypted vars) belongs in the `dotfiles` repo or a password manager, not here.
 
 ## Repo cross-references
+
+The user's NixOS machines are configured by `~/repos/nix-config` (a Nix flake), not this repo. The macOS browser policies here mirror its `modules/browsers.nix`; its `home/dotfiles/zshrc` is a separate copy of the zshrc that `dotfiles` deploys here.
 
 `bootstrap.sh` clones `Geekiac/dotfiles`, `Geekiac/Notes`, and `Geekiac/machine-bootstrap` itself into `~/repos`, then runs `playbook.yml` from the cloned copy — not from wherever `bootstrap.sh` itself was originally invoked. Keep this in mind if changing paths or the clone step: edits to a locally-checked-out `machine-bootstrap` won't affect a fresh bootstrap run until pushed, since the script re-clones from GitHub.

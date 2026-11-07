@@ -1,0 +1,57 @@
+{#-
+  macOS configuration profile carrying Firefox and Brave enterprise policies.
+  Rendered by playbook.yml from firefox_policies / brave_policies; edit those,
+  not this file. Each payload's PayloadType is the app's preference domain,
+  so the policy keys sit directly in it as managed preferences.
+
+  plist() converts YAML values to plist XML recursively. boolean is tested
+  before integer because YAML true/false are Python bools.
+-#}
+{%- macro plist(v) -%}
+{%- if v is boolean -%}<{{ 'true' if v else 'false' }}/>
+{%- elif v is integer -%}<integer>{{ v }}</integer>
+{%- elif v is string -%}<string>{{ v | e }}</string>
+{%- elif v is mapping -%}<dict>{% for k, x in v.items() %}<key>{{ k | e }}</key>{{ plist(x) }}{% endfor %}</dict>
+{%- else -%}<array>{% for x in v %}{{ plist(x) }}{% endfor %}</array>
+{%- endif -%}
+{%- endmacro -%}
+{%- set id = 'com.github.geekiac.machine-bootstrap.browser-policies' -%}
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadType</key><string>Configuration</string>
+  <key>PayloadVersion</key><integer>1</integer>
+  <key>PayloadIdentifier</key><string>{{ id }}</string>
+  <key>PayloadUUID</key><string>{{ id | to_uuid | upper }}</string>
+  <key>PayloadDisplayName</key><string>Browser hardening</string>
+  <key>PayloadDescription</key><string>Firefox and Brave policies from machine-bootstrap (mirrors nix-config's modules/browsers.nix).</string>
+  <key>PayloadScope</key><string>System</string>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadType</key><string>org.mozilla.firefox</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>{{ id }}.firefox</string>
+      <key>PayloadUUID</key><string>{{ (id ~ '.firefox') | to_uuid | upper }}</string>
+      <key>PayloadDisplayName</key><string>Firefox policies</string>
+      <key>PayloadEnabled</key><true/>
+      <key>EnterprisePoliciesEnabled</key><true/>
+{% for k, v in firefox_policies.items() %}
+      <key>{{ k | e }}</key>{{ plist(v) }}
+{% endfor %}
+    </dict>
+    <dict>
+      <key>PayloadType</key><string>com.brave.Browser</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>{{ id }}.brave</string>
+      <key>PayloadUUID</key><string>{{ (id ~ '.brave') | to_uuid | upper }}</string>
+      <key>PayloadDisplayName</key><string>Brave policies</string>
+      <key>PayloadEnabled</key><true/>
+{% for k, v in brave_policies.items() %}
+      <key>{{ k | e }}</key>{{ plist(v) }}
+{% endfor %}
+    </dict>
+  </array>
+</dict>
+</plist>

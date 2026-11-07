@@ -64,6 +64,39 @@ drops it in `~/.local/bin`, the same "installer lands a binary on
 it's in `pacman_packages` alongside it. On macOS, Obsidian still
 installs normally via the Homebrew cask.
 
+## Browser hardening on macOS
+
+The Mac gets the same browser setup as the NixOS machines
+([`nix-config`](https://github.com/Geekiac/nix-config)'s
+`modules/browsers.nix`): Firefox plus a Chromium-based browser, hardened
+through enterprise policies — telemetry off, HTTPS-only, DuckDuckGo as
+the default search, no saving of passwords/cards/addresses (1Password
+handles those), uBlock Origin and 1Password extensions force-installed
+in Firefox, and Enhanced Tracking Protection set to Strict.
+
+- **Brave, not Chromium**: Homebrew's `chromium` cask is disabled (it
+  fails Gatekeeper). Brave takes its place — signed, self-updating, and
+  it reads the same Chromium policies plus its own (P3A/stats
+  telemetry, Rewards, Wallet and VPN all off). Brave Shields replaces
+  uBlock Origin Lite there.
+- **Google Chrome is no longer installed.** The playbook doesn't remove
+  an existing copy; to remove it with its profile, caches and updater:
+  `brew uninstall --cask --zap google-chrome`.
+- **Policies live in `playbook.yml`** (`firefox_policies`,
+  `brave_policies`) and are rendered into
+  `~/.local/share/machine-bootstrap/browser-policies.mobileconfig` from
+  `templates/browser-policies.mobileconfig.j2`. Keep them in step with
+  `nix-config`.
+- **Approval is manual.** macOS no longer lets a script install a
+  configuration profile, so the playbook `open`s it and you approve
+  "Browser hardening" in System Settings → General → Device Management.
+  It's re-opened only when the policies change or the profile isn't
+  installed. Verify with `about:policies` (Firefox) and
+  `brave://policy` (Brave) after restarting each browser.
+
+Arch still installs Google Chrome from the AUR and doesn't get these
+policies yet.
+
 ## What it does
 
 **`bootstrap.sh`**
@@ -98,6 +131,8 @@ step 1.
   Code token usage, cost estimates, and session history
 - macOS: installs CLI tools via Homebrew formulae, GUI apps/fonts via
   Homebrew casks
+- macOS: hardens Firefox and Brave with a configuration profile (see
+  "Browser hardening on macOS" below)
 - Arch: installs official-repo packages via pacman; Obsidian installs
   from its own AppImage (see "Obsidian on Arch" above) — `yay` and AUR
   packages (Chrome, VS Code MS build) are installed earlier, by
@@ -128,6 +163,9 @@ A couple of steps need you at the keyboard the first time only:
   signed in via the App Store app's GUI — `mas` can't do this itself,
   and can't prompt for it either. If nothing's signed in yet, that
   task fails; sign in through the App Store app once, then re-run.
+- **macOS**: the browser hardening profile has to be approved in
+  System Settings → General → Device Management (again whenever the
+  policies change) — see "Browser hardening on macOS" above.
 
 Subsequent runs on an already-bootstrapped machine skip all of this
 and run non-interactively.
